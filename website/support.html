@@ -1,0 +1,334 @@
+<!--
+  FAQ content is grounded in this app's actual planned behavior (two
+  workflows -- Preoperative Case Conference and What Would You Do --
+  Sign in with Apple / email accounts, on-device PHI screening, dictation
+  via Apple's Speech framework, AI-generated content, PubMed references,
+  account/data deletion via request -- see backend/README.md and the
+  ported PHIFilterService.swift / SpeechRecognitionService.swift once the
+  iOS app exists). No response-time SLA is claimed since none exists.
+  This page is also meant to serve as the app's future App Store Connect
+  "Support URL". Contact entity/email assumed to match MMCoach's same
+  developer (Bender Apps, LLC / support@benderapps.dev) -- confirm this is
+  correct for this app before publishing.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Support — Cardiac Surgery Copilot</title>
+  <meta name="description" content="Answers to common questions about Cardiac Surgery Copilot, and how to reach us for help." />
+  <meta name="theme-color" content="#0e4f49" />
+  <meta name="robots" content="index, follow" />
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+
+  <header class="site-header">
+    <div class="wrap site-header__inner">
+      <a class="brand" href="index.html" aria-label="Cardiac Surgery Copilot home">
+        <span class="brand__mark" aria-hidden="true"></span>
+        <span class="brand__name">Cardiac Surgery Copilot</span>
+      </a>
+
+      <button
+        class="nav-toggle"
+        type="button"
+        id="nav-toggle"
+        aria-expanded="false"
+        aria-controls="primary-nav"
+      >
+        <span class="nav-toggle__box">
+          <span class="nav-toggle__bar"></span>
+          <span class="nav-toggle__bar"></span>
+          <span class="nav-toggle__bar"></span>
+        </span>
+        <span class="visually-hidden">Menu</span>
+      </button>
+
+      <nav class="site-nav" id="primary-nav" aria-label="Primary">
+        <ul class="site-nav__list">
+          <li><a href="index.html#how-it-works">How It Works</a></li>
+          <li><a href="index.html#features">Features</a></li>
+          <li><a href="index.html#for-trainees">For Trainees</a></li>
+          <li><a href="support.html" aria-current="page">Support</a></li>
+        </ul>
+        <a class="btn btn-primary btn-sm site-nav__cta" href="index.html#" data-placeholder="app-store">
+          Download on the App Store
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main-content">
+    <article class="legal">
+      <div class="wrap legal__wrap">
+        <header class="legal__header">
+          <p class="legal__eyebrow">Help</p>
+          <h1>Support</h1>
+          <p class="legal__intro">
+            Answers to common questions about using Cardiac Surgery
+            Copilot. If you don't see what you're looking for, contact us
+            directly — see <a href="#contact-us">Contact us</a> below.
+          </p>
+        </header>
+
+        <div class="faq-group">
+          <h2 class="faq-group__title">Getting started</h2>
+          <div class="faq-list">
+            <details class="faq-item">
+              <summary>What is Cardiac Surgery Copilot?</summary>
+              <div class="faq-item__body">
+                <p>
+                  Cardiac Surgery Copilot is an educational tool for
+                  cardiac surgery trainees with two modes. In
+                  <strong>Preoperative Case Conference</strong>, you
+                  describe a case, answer a few focused follow-up
+                  questions, and the app produces a structured report —
+                  diagnosis, indication, missing information, operative
+                  strategy, alternatives, controversies, technical
+                  considerations, postoperative concerns, and
+                  evidence/guidelines. In <strong>What Would You
+                  Do</strong>, you describe a case and get a short
+                  presentation plus a starting question, then hold a live
+                  discussion with an AI attending that questions your
+                  reasoning.
+                </p>
+              </div>
+            </details>
+            <details class="faq-item">
+              <summary>Do I need an account?</summary>
+              <div class="faq-item__body">
+                <p>
+                  Yes. You can create an account with Sign in with
+                  Apple or an email and password.
+                </p>
+              </div>
+            </details>
+            <details class="faq-item">
+              <summary>Which mode should I use?</summary>
+              <div class="faq-item__body">
+                <p>
+                  Use Preoperative Case Conference when you're actually
+                  presenting a case at conference and want a structured,
+                  complete report. Use What Would You Do when you want to
+                  practice reasoning through a case out loud — it's built
+                  for rehearsal, not for producing a document.
+                </p>
+              </div>
+            </details>
+            <details class="faq-item">
+              <summary>Is Cardiac Surgery Copilot free?</summary>
+              <div class="faq-item__body">
+                <p>
+                  Your first complete case preparation is free. After
+                  that, preparing additional cases requires an
+                  auto-renewing subscription purchased through your
+                  Apple ID account. See our
+                  <a href="terms-of-use.html#fees">Terms of Use</a> for
+                  full subscription terms.
+                </p>
+              </div>
+            </details>
+            <details class="faq-item">
+              <summary>How do I cancel my subscription?</summary>
+              <div class="faq-item__body">
+                <p>
+                  Subscriptions are managed through Apple, not through
+                  Cardiac Surgery Copilot directly. On your device, open
+                  Settings &gt; [your name] &gt; Subscriptions, select
+                  Cardiac Surgery Copilot, and turn off auto-renew.
+                  Turning off auto-renewal at least 24 hours before the
+                  current period ends prevents the next charge; it does
+                  not refund the current period.
+                </p>
+              </div>
+            </details>
+          </div>
+        </div>
+
+        <div class="faq-group">
+          <h2 class="faq-group__title">Patient information and accuracy</h2>
+          <div class="faq-list">
+            <details class="faq-item">
+              <summary>Can I enter real patient information?</summary>
+              <div class="faq-item__body">
+                <p>
+                  No. Do not enter real patient identifiers — names,
+                  medical record numbers, exact dates, contact
+                  information, or anything else that could identify a
+                  specific patient, staff member, or institution. Use
+                  de-identified or approximate details instead.
+                </p>
+                <p>
+                  The app includes an on-device check that flags likely
+                  identifiers before they leave your device as a safety
+                  net, but it is not a substitute for your own
+                  judgment and cannot screen audio already sent for
+                  speech recognition. See our
+                  <a href="privacy-policy.html">Privacy Policy</a> for
+                  details.
+                </p>
+              </div>
+            </details>
+            <details class="faq-item">
+              <summary>Is Cardiac Surgery Copilot HIPAA compliant?</summary>
+              <div class="faq-item__body">
+                <p>
+                  Cardiac Surgery Copilot is an educational preparation
+                  tool. It does not provide medical advice and does not
+                  replace clinical judgment, institutional policy, or
+                  supervision. It is not intended to be used to store
+                  or transmit protected health information, and is not
+                  represented as a HIPAA "covered entity" or "business
+                  associate."
+                </p>
+              </div>
+            </details>
+            <details class="faq-item">
+              <summary>Is the AI-generated content accurate?</summary>
+              <div class="faq-item__body">
+                <p>
+                  Conference reports, discussion replies, and the
+                  literature search are generated with the help of AI
+                  and may be incomplete, inaccurate, out of date, or
+                  occasionally fabricated. Always independently review
+                  and verify content — including citations — before
+                  relying on it or presenting it.
+                </p>
+              </div>
+            </details>
+          </div>
+        </div>
+
+        <div class="faq-group">
+          <h2 class="faq-group__title">Dictation</h2>
+          <div class="faq-list">
+            <details class="faq-item">
+              <summary>How does dictation work?</summary>
+              <div class="faq-item__body">
+                <p>
+                  Tap the microphone to dictate your case instead of
+                  typing. Speech recognition may run on your device or,
+                  when a network connection is available, on Apple's
+                  speech recognition servers (this allows the app to
+                  better recognize cardiac surgery terminology). Only
+                  the recognized text — never the audio itself — is
+                  sent to the Cardiac Surgery Copilot backend, and it
+                  passes through the on-device patient-information check
+                  first.
+                </p>
+              </div>
+            </details>
+            <details class="faq-item">
+              <summary>Dictation isn't working — what should I check?</summary>
+              <div class="faq-item__body">
+                <p>
+                  Make sure Cardiac Surgery Copilot has microphone and
+                  speech recognition permission in Settings, and that you
+                  have a network connection for the best recognition
+                  quality. If it still isn't working, you can always
+                  type the case instead — or
+                  <a href="#contact-us">contact us</a> with details.
+                </p>
+              </div>
+            </details>
+          </div>
+        </div>
+
+        <div class="faq-group">
+          <h2 class="faq-group__title">Your data</h2>
+          <div class="faq-list">
+            <details class="faq-item">
+              <summary>How do I delete my account or data?</summary>
+              <div class="faq-item__body">
+                <p>
+                  Email us at
+                  <a href="mailto:support@benderapps.dev">support@benderapps.dev</a>
+                  from the address associated with your account and
+                  request deletion. See our
+                  <a href="privacy-policy.html">Privacy Policy</a> for
+                  more on how your data is handled.
+                </p>
+              </div>
+            </details>
+            <details class="faq-item">
+              <summary>Who can see the cases I create?</summary>
+              <div class="faq-item__body">
+                <p>
+                  Your cases — from either mode — are associated with
+                  your account and are not visible to other users. See
+                  our <a href="privacy-policy.html">Privacy Policy</a>
+                  for details on how case content is stored and
+                  processed, including by our AI and literature-search
+                  providers.
+                </p>
+              </div>
+            </details>
+          </div>
+        </div>
+
+        <div class="faq-group">
+          <h2 class="faq-group__title">Troubleshooting</h2>
+          <div class="faq-list">
+            <details class="faq-item">
+              <summary>Something isn't working — what should I do?</summary>
+              <div class="faq-item__body">
+                <p>
+                  <a href="#contact-us">Email us</a> with a short
+                  description of what happened, your iOS version, which
+                  mode you were using, and (if it's specific to one case)
+                  which case it involved. Screenshots help too.
+                </p>
+              </div>
+            </details>
+          </div>
+        </div>
+
+        <section id="contact-us" class="faq-group">
+          <h2 class="faq-group__title">Contact us</h2>
+          <p>Can't find an answer above? Reach out directly:</p>
+          <p class="legal__contact">
+            <strong>Bender Apps, LLC</strong><br />
+            Email: <a href="mailto:support@benderapps.dev">support@benderapps.dev</a>
+          </p>
+        </section>
+      </div>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <div class="site-footer__top">
+        <div class="brand brand--footer">
+          <span class="brand__mark" aria-hidden="true"></span>
+          <span class="brand__name">Cardiac Surgery Copilot</span>
+        </div>
+
+        <nav class="footer-nav" aria-label="Footer">
+          <ul class="footer-nav__list">
+            <li><a href="privacy-policy.html">Privacy Policy</a></li>
+            <li><a href="terms-of-use.html">Terms of Use</a></li>
+            <li><a href="support.html" aria-current="page">Support</a></li>
+            <li><a href="support.html#contact-us">Contact</a></li>
+          </ul>
+        </nav>
+      </div>
+
+      <p class="site-footer__disclaimer">
+        Cardiac Surgery Copilot is an educational preparation tool. It does
+        not provide medical advice and does not replace clinical judgment,
+        institutional policy, or supervision.
+      </p>
+
+      <p class="site-footer__copyright">
+        &copy; <span id="current-year">2026</span> Cardiac Surgery Copilot. All rights reserved.
+      </p>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

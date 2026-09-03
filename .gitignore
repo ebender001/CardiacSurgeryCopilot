@@ -1,0 +1,38 @@
+# macOS
+.DS_Store
+
+# Editor settings
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Claude Code local settings (personal, not shared)
+.claude/settings.local.json
+
+# Dependencies and build output
+node_modules/
+dist/
+build/
+coverage/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment files and local Parse CLI configuration
+.env
+.env.*
+!.env.example
+backend/.parse.local
+
+# Local admin tools (personal scripts/credentials, not shared)
+admin-tools/
+
+# Xcode
+ios/**/xcuserdata/
+ios/**/*.xcuserstate
+ios/**/DerivedData/
+ios/**/.build/
