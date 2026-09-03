@@ -18,6 +18,8 @@ const EXTRACTED_CASE_FIELDS = Object.freeze([
   'functionalStatus',
   'patientGoalsOrPreferences',
   'socialFactors',
+  'nonSurgicalOptionsConsidered',
+  'riskScores',
   'uncertainties',
 ]);
 

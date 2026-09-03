@@ -1,7 +1,7 @@
 const { CONFERENCE_EDUCATOR_PERSONA } = require('./persona');
 const { EXTRACTED_CASE_FIELDS } = require('../schemas/conferenceExtractedCaseSchema');
 
-const ANALYZE_CONFERENCE_CASE_PROMPT_VERSION = '1.0.0';
+const ANALYZE_CONFERENCE_CASE_PROMPT_VERSION = '1.1.0';
 
 const FIELD_GUIDANCE = `Possible extractedCase fields (use only the ones relevant to this case; omit fields you have no information about; never invent values):
 ${EXTRACTED_CASE_FIELDS.map((field) => `- ${field}`).join('\n')}
@@ -16,7 +16,7 @@ You may use other field names if something important doesn't fit the list above.
 function buildInitialAnalysisPrompt(narrative) {
   const system = `${CONFERENCE_EDUCATOR_PERSONA}
 
-You are reviewing a trainee's initial dictated narrative of a real patient being considered for cardiac surgery, ahead of a preoperative case conference. Extract the clinically meaningful information into a structured object, and note what important information is still unknown.
+You are reviewing a trainee's initial dictated narrative of a real patient being considered for cardiac surgery, ahead of a multidisciplinary heart team conference. Extract the clinically meaningful information into a structured object -- including, where known, any non-surgical/catheter-based options already considered and any risk scores already calculated, since a cardiologist on the heart team will likely ask about both -- and note what important information is still unknown.
 
 ${FIELD_GUIDANCE}
 
@@ -47,7 +47,7 @@ function buildIncorporateAnswerPrompt({ extractedCase, conversation, newEntry })
 
   const system = `${CONFERENCE_EDUCATOR_PERSONA}
 
-You previously extracted a structured summary of a trainee's preoperative cardiac surgery case. The trainee has just answered a follow-up question. Update the structured case with the new information.
+You previously extracted a structured summary of a trainee's preoperative cardiac surgery case, ahead of a multidisciplinary heart team conference. The trainee has just answered a follow-up question. Update the structured case with the new information.
 
 ${FIELD_GUIDANCE}
 
