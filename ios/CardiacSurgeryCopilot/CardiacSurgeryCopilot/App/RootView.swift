@@ -27,10 +27,7 @@ struct RootView: View {
                 case .signedOut:
                     WelcomeView(viewModel: authViewModel)
                 case .signedIn(let user):
-                    // TODO: replace with the real two-section Home screen
-                    // (Preoperative Case Conference / What Would You Do) once
-                    // that's built -- see the scaffolding plan.
-                    SignedInPlaceholderView(currentUser: user, onSignOut: {
+                    HomeTabView(currentUser: user, onSignOut: {
                         Task { await authViewModel.signOut() }
                     })
                 }

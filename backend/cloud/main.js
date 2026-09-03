@@ -12,6 +12,7 @@ require('./functions/getConferenceCase');
 require('./functions/listConferenceCases');
 require('./functions/updateConferenceReport');
 require('./functions/findConferenceReferences');
+require('./functions/getConferenceHeartTeamResponses');
 
 // What Would You Do workflow
 require('./functions/createWwydCase');

@@ -10,6 +10,7 @@ const aiCostRepository = require('../repositories/aiCostRepository');
 const conferenceCaseAnalyzer = require('../ai/conferenceCaseAnalyzer');
 const conferenceQuestionGenerator = require('../ai/conferenceQuestionGenerator');
 const conferenceFinalizer = require('../ai/conferenceFinalizer');
+const heartTeamResponses = require('../ai/heartTeamResponses');
 const { ConferenceCaseStatus } = require('../schemas/conferenceCaseStatus');
 const { NotFoundError, InvalidStateError } = require('../utils/errors');
 const { generateId } = require('../utils/idGenerator');
@@ -240,6 +241,44 @@ async function updateReport({ caseId, ownerId, report }) {
   return conferenceCaseRepository.update(caseId, { report: { ...caseState.report, ...report } });
 }
 
+/**
+ * Returns this case's three heart-team-member responses, generating and
+ * caching them on first request (a case that still has an open question
+ * has nothing stable to generate responses from yet, so this is rejected
+ * until the case reaches ready_to_finalize/completed). Cached on the case
+ * itself so repeat views (switching between the three, backing out and
+ * returning) never re-run the AI call -- mirrors the referenceLookups
+ * caching pattern above.
+ */
+async function getHeartTeamResponses({ caseId, ownerId }) {
+  const caseState = await getOwnedCase(caseId, ownerId);
+  if (caseState.heartTeamResponses) {
+    return caseState.heartTeamResponses;
+  }
+  if (caseState.status === ConferenceCaseStatus.COLLECTING_INFORMATION) {
+    throw new InvalidStateError('This case still has an open question and is not ready for heart-team responses.');
+  }
+
+  const result = await heartTeamResponses.generateResponses({
+    extractedCase: caseState.extractedCase,
+    conversation: caseState.conversation,
+    originalNarrative: caseState.originalNarrative,
+    caseId,
+  });
+  await recordAIUsage({ caseId, ownerId, operation: 'generateHeartTeamResponses', meta: result.meta });
+
+  const responses = {
+    surgeon: result.surgeon,
+    nonInterventionalCardiologist: result.nonInterventionalCardiologist,
+    interventionalCardiologist: result.interventionalCardiologist,
+  };
+  await conferenceCaseRepository.update(caseId, {
+    heartTeamResponses: responses,
+    promptVersion: { ...caseState.promptVersion, heartTeamResponses: result.promptVersion },
+  });
+  return responses;
+}
+
 /** Every conference case owned by the caller, most recent first. */
 async function listCases({ ownerId }) {
   const cases = await conferenceCaseRepository.listForOwner(ownerId);
@@ -301,6 +340,7 @@ function formatFullCase(caseState) {
     conversation: caseState.conversation,
     nextQuestion: toNextQuestion(caseState.currentQuestion),
     report: caseState.report,
+    heartTeamResponses: caseState.heartTeamResponses,
     promptVersion: caseState.promptVersion,
     aiModel: caseState.aiModel,
     createdAt: caseState.createdAt,
@@ -315,6 +355,7 @@ module.exports = {
   getCase,
   updateReport,
   listCases,
+  getHeartTeamResponses,
   getCachedReferenceLookup,
   cacheReferenceLookup,
   recordAIUsage,
