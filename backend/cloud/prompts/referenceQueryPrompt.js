@@ -1,6 +1,6 @@
 const { CONFERENCE_EDUCATOR_PERSONA } = require('./persona');
 
-const REFERENCE_QUERY_PROMPT_VERSION = '1.0.0';
+const REFERENCE_QUERY_PROMPT_VERSION = '1.1.0';
 
 /**
  * Builds the prompt used to translate a discussion-prep reference topic
@@ -17,9 +17,9 @@ You translate a clinical discussion topic into a single, effective PubMed search
 Use PubMed search syntax:
 - MeSH headings with [mesh] where a clear, specific MeSH heading exists for a concept.
 - Title/abstract keywords with [tiab] for concepts that don't map cleanly to one MeSH heading.
-- Boolean AND to combine 2-4 concepts. Use OR only to group close synonyms within one concept (in parentheses), never to broaden across unrelated concepts.
+- Boolean AND to combine 2-3 concepts, not more. Use OR only to group close synonyms within one concept (in parentheses), never to broaden across unrelated concepts.
 
-Prefer terms and structure likely to surface reviews, guidelines, and comparative/observational studies over isolated case reports. Keep the query focused and precise -- a query so broad it returns thousands of unrelated results is not useful for conference prep, and a query so narrow (5+ ANDed concepts) it returns nothing is equally useless.
+Prefer terms and structure likely to surface reviews, guidelines, and comparative/observational studies over isolated case reports. Keep the query focused and precise -- a query so broad it returns thousands of unrelated results is not useful for conference prep, and a query so narrow it returns nothing is equally useless. Every ANDed concept independently narrows the result set, so include only what's essential to the topic: the core intervention/condition, and a comparator only if the topic is explicitly comparative. Never AND in an incidental patient-specific detail as its own concept (an exact lab value, a specific percentage, a demographic or social circumstance) -- a paper doesn't need to report every such detail verbatim to be relevant literature on the core topic; if it matters, let it inform which core concept or synonym you pick, not add a fourth or fifth mandatory filter.
 
 Respond only with a JSON object of this exact shape, no other text:
 { "query": "<the PubMed search query string>" }`;

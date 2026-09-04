@@ -271,9 +271,9 @@
 				DEVELOPMENT_TEAM = 33QTCM27D5;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Cardiac Surgery Copilot";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Cardiac Surgery Copilot uses the microphone to let you dictate case narratives.";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Cardiac Surgery Copilot uses speech recognition to transcribe your dictated case narrative into text.";
+				INFOPLIST_KEY_CFBundleDisplayName = "Heart Team";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Heart Team Copilot uses the microphone to let you dictate case narratives.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Heart Team Copilot uses speech recognition to transcribe your dictated case narrative into text.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
@@ -312,9 +312,9 @@
 				DEVELOPMENT_TEAM = 33QTCM27D5;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Cardiac Surgery Copilot";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Cardiac Surgery Copilot uses the microphone to let you dictate case narratives.";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Cardiac Surgery Copilot uses speech recognition to transcribe your dictated case narrative into text.";
+				INFOPLIST_KEY_CFBundleDisplayName = "Heart Team";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Heart Team Copilot uses the microphone to let you dictate case narratives.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Heart Team Copilot uses speech recognition to transcribe your dictated case narrative into text.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;

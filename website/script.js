@@ -1,5 +1,5 @@
 /**
- * Cardiac Surgery Copilot marketing site -- lightweight, dependency-free
+ * Heart Team Copilot marketing site -- lightweight, dependency-free
  * behavior only: accessible mobile nav toggle, smooth same-page scrolling
  * (respecting reduced-motion), closing the mobile menu after a nav
  * selection, and keeping the footer copyright year current. No trackers,

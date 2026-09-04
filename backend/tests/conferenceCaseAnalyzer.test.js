@@ -15,7 +15,7 @@ describe('conferenceCaseAnalyzer.analyzeInitialNarrative', () => {
     const result = await conferenceCaseAnalyzer.analyzeInitialNarrative({ narrative: 'case text', caseId: 'c1' });
 
     expect(result.extractedCase).toEqual({ diagnosis: 'Severe aortic stenosis' });
-    expect(result.promptVersion).toBe('1.1.0');
+    expect(result.promptVersion).toBe('1.2.0');
   });
 
   it('throws AIResponseError when extractedCase is missing', async () => {

@@ -48,9 +48,9 @@ enum BackendError: LocalizedError, Equatable {
         case .server:
             return "Something went wrong. Please try again."
         case .network:
-            return "Cardiac Surgery Copilot couldn't reach the server. Check your connection and try again."
+            return "Heart Team Copilot couldn't reach the server. Check your connection and try again."
         case .decoding:
-            return "Cardiac Surgery Copilot couldn't read the server's response. Please try again."
+            return "Heart Team Copilot couldn't read the server's response. Please try again."
         }
     }
 
@@ -91,6 +91,40 @@ enum BackendService {
         try await run(CreateConferenceCaseFunction(narrative: narrative))
     }
 
+    /// Submits an answer to the case's current follow-up question. The
+    /// backend either asks one more question or moves the case to
+    /// `ready_to_finalize` -- the client never decides which.
+    static func answerConferenceQuestion(caseId: String, questionId: String, answer: String) async throws -> ConferenceCase {
+        try await run(AnswerConferenceQuestionFunction(caseId: caseId, questionId: questionId, answer: answer))
+    }
+
+    /// Generates and persists the nine-section report, moving the case to
+    /// `completed`. Only valid once the case needs no more follow-up
+    /// questions -- the backend rejects this while `status ==
+    /// collecting_information`. Idempotent-in-effect but not cheap: calling
+    /// this on an already-`completed` case is rejected too (see
+    /// ConferenceReportViewModel, which only calls this once per case).
+    static func finalizeConferenceCase(caseId: String) async throws -> ConferenceCase {
+        try await run(FinalizeConferenceCaseFunction(caseId: caseId))
+    }
+
+    /// The full current state of one case -- used to resume an
+    /// in-progress case (interview or report) reached from Recent Cases,
+    /// where nothing about it is known client-side beyond its id/status.
+    static func getConferenceCase(caseId: String) async throws -> ConferenceCase {
+        try await run(GetConferenceCaseFunction(caseId: caseId))
+    }
+
+    /// Live PubMed lookup for one evidence/guideline topic identified on
+    /// the case's report -- not itself persisted back onto the report; the
+    /// trainee reviews results and picks their own sources, same reasoning
+    /// as `getHeartTeamRoleEvidence`. `caseId` lets the backend verify
+    /// ownership, cache the result on the case, and roll this call's AI
+    /// cost into that case's running total.
+    static func findConferenceReferences(topic: String, searchIntent: String, caseId: String) async throws -> [PubMedArticle] {
+        try await run(FindConferenceReferencesFunction(topic: topic, searchIntent: searchIntent, caseId: caseId)).results
+    }
+
     /// Every Heart Team case the signed-in trainee owns, most recent
     /// first -- the single source of truth for the Heart Team tab's
     /// Recent Cases list.
@@ -105,6 +139,14 @@ enum BackendService {
     /// this while `status == collecting_information`.
     static func getConferenceHeartTeamResponses(caseId: String) async throws -> HeartTeamResponses {
         try await run(GetConferenceHeartTeamResponsesFunction(caseId: caseId))
+    }
+
+    /// One heart-team role's pro/con PubMed evidence for its stated
+    /// recommendation, generated and cached server-side on first call.
+    /// Requires `getConferenceHeartTeamResponses` to have already run for
+    /// this case -- the backend rejects this otherwise.
+    static func getHeartTeamRoleEvidence(caseId: String, role: HeartTeamRole) async throws -> HeartTeamRoleEvidence {
+        try await run(GetHeartTeamRoleEvidenceFunction(caseId: caseId, role: role.rawValue))
     }
 
     /// Permanently deletes the signed-in account and every case/AI-cost
@@ -143,10 +185,50 @@ private struct CreateConferenceCaseFunction: ParseCloudable {
     var narrative: String
 }
 
+private struct AnswerConferenceQuestionFunction: ParseCloudable {
+    typealias ReturnType = ConferenceCase
+    var functionJobName = "cscAnswerConferenceQuestion"
+    var caseId: String
+    var questionId: String
+    var answer: String
+}
+
+private struct FinalizeConferenceCaseFunction: ParseCloudable {
+    typealias ReturnType = ConferenceCase
+    var functionJobName = "cscFinalizeConferenceCase"
+    var caseId: String
+}
+
+private struct GetConferenceCaseFunction: ParseCloudable {
+    typealias ReturnType = ConferenceCase
+    var functionJobName = "cscGetConferenceCase"
+    var caseId: String
+}
+
+private struct FindConferenceReferencesResponse: Decodable {
+    let topic: String
+    let results: [PubMedArticle]
+}
+
+private struct FindConferenceReferencesFunction: ParseCloudable {
+    typealias ReturnType = FindConferenceReferencesResponse
+    var functionJobName = "cscFindConferenceReferences"
+    var topic: String
+    var searchIntent: String
+    var caseId: String
+}
+
 private struct GetConferenceHeartTeamResponsesFunction: ParseCloudable {
     typealias ReturnType = HeartTeamResponses
     var functionJobName = "cscGetConferenceHeartTeamResponses"
     var caseId: String
+}
+
+private struct GetHeartTeamRoleEvidenceFunction: ParseCloudable {
+    typealias ReturnType = HeartTeamRoleEvidence
+    var functionJobName = "cscGetHeartTeamRoleEvidence"
+    var caseId: String
+    var role: String
 }
 
 private struct ListConferenceCasesResponse: Decodable {

@@ -11,13 +11,30 @@ const conferenceCaseAnalyzer = require('../ai/conferenceCaseAnalyzer');
 const conferenceQuestionGenerator = require('../ai/conferenceQuestionGenerator');
 const conferenceFinalizer = require('../ai/conferenceFinalizer');
 const heartTeamResponses = require('../ai/heartTeamResponses');
+const referenceQueryBuilder = require('../ai/referenceQueryBuilder');
+const pubmedService = require('./pubmedService');
 const { ConferenceCaseStatus } = require('../schemas/conferenceCaseStatus');
-const { NotFoundError, InvalidStateError } = require('../utils/errors');
+const { ROLES: HEART_TEAM_ROLES } = require('../schemas/heartTeamResponseSchema');
+const { NotFoundError, InvalidStateError, ValidationError } = require('../utils/errors');
 const { generateId } = require('../utils/idGenerator');
 const { deriveTitle } = require('../utils/caseTitle');
 const logger = require('../utils/logger');
 
 const CASE_TYPE = 'conference';
+const EVIDENCE_MAX_RESULTS = 5;
+const EVIDENCE_MAX_AGE_YEARS = 10;
+
+/**
+ * Plain-language role labels used only to phrase the pro/con PubMed-
+ * query-builder prompts in `getRoleEvidence` below -- not shown to the
+ * client (the client already has its own display names, see
+ * HeartTeamRole.displayName on iOS).
+ */
+const EVIDENCE_ROLE_LABELS = {
+  surgeon: 'a cardiac surgeon',
+  nonInterventionalCardiologist: 'a non-interventional cardiologist',
+  interventionalCardiologist: 'an interventional cardiologist',
+};
 
 /**
  * Records one AI provider call's cost/token usage against a case and
@@ -279,6 +296,129 @@ async function getHeartTeamResponses({ caseId, ownerId }) {
   return responses;
 }
 
+/**
+ * Runs a PubMed search for the AI-crafted `primaryQuery`, and if it comes
+ * back empty, asks the query builder for a second, explicitly broader
+ * attempt rather than showing "no results" -- the AI query-builder
+ * sometimes ANDs in an incidental patient-specific detail (an exact lab
+ * value, a specific circumstance) as its own mandatory concept, which can
+ * make an otherwise well-formed query return nothing despite the topic
+ * itself being well covered in the literature. This deliberately does NOT
+ * fall back to sending `topic` to PubMed as bare free text the way
+ * cscFindConferenceReferences does for its (short, already search-friendly)
+ * discussion topics -- `topic`/`searchIntent` here are full descriptive
+ * sentences, and PubMed's automatic term mapping ANDs together every
+ * recognized word in an unquoted query, so a sentence full of generic
+ * framing language ("Evidence supporting this recommendation from...")
+ * reliably returns zero regardless of the actual clinical content.
+ * `minYear` is applied to both attempts -- the evidence feature's 10-year
+ * window is never relaxed as part of broadening.
+ */
+async function findEvidenceWithFallback({ topic, searchIntent, primaryQuery, maxResults, minYear, caseId, ownerId, operation }) {
+  const results = await pubmedService.findReferences({ query: primaryQuery, maxResults, minYear });
+  if (results.length > 0) {
+    return { query: primaryQuery, results };
+  }
+
+  const yearsBack = new Date().getFullYear() - minYear;
+  const broadened = await referenceQueryBuilder.buildQuery({
+    topic,
+    searchIntent: `${searchIntent}\n\nThe query "${primaryQuery}" returned zero results in the last ${yearsBack} years. Write a broader query this time -- at most two ANDed concepts: the core intervention/condition, plus a comparator only if essential. Drop every incidental patient-specific detail (an exact lab value, a specific percentage, a demographic or social circumstance) entirely rather than including it as a concept, even if that means the query is more general than the topic above.`,
+  });
+  await recordAIUsage({ caseId, ownerId, operation, meta: broadened.meta });
+
+  const broadenedResults = await pubmedService.findReferences({ query: broadened.query, maxResults, minYear });
+  return { query: broadened.query, results: broadenedResults };
+}
+
+/**
+ * Runs one pro/con PubMed evidence search for a single heart-team role's
+ * stated opinion on this case -- "pro" evidence supports that role's
+ * `recommendation`, "con" evidence favors an alternative or argues
+ * against it. Requires `getHeartTeamResponses` to have already run for
+ * this case (there's no opinion to find evidence for before that).
+ * Cached per-role on the case, mirroring `getHeartTeamResponses`, so
+ * revisiting a role's evidence never repeats the AI query-building calls
+ * or the PubMed round trips. Results are restricted to publications from
+ * the last `EVIDENCE_MAX_AGE_YEARS` years (see pubmedService's `minYear`)
+ * -- never older, and never fabricated if fewer than `EVIDENCE_MAX_RESULTS`
+ * turn up within that window.
+ */
+async function getRoleEvidence({ caseId, ownerId, role }) {
+  if (!HEART_TEAM_ROLES.includes(role)) {
+    throw new ValidationError(`role must be one of: ${HEART_TEAM_ROLES.join(', ')}.`);
+  }
+
+  const caseState = await getOwnedCase(caseId, ownerId);
+  if (caseState.heartTeamEvidence && caseState.heartTeamEvidence[role]) {
+    return caseState.heartTeamEvidence[role];
+  }
+  if (!caseState.heartTeamResponses || !caseState.heartTeamResponses[role]) {
+    throw new InvalidStateError("Generate this case's heart team responses before requesting evidence.");
+  }
+
+  const { recommendation, rationale } = caseState.heartTeamResponses[role];
+  const roleLabel = EVIDENCE_ROLE_LABELS[role];
+  const minYear = new Date().getFullYear() - EVIDENCE_MAX_AGE_YEARS;
+  const proTopic = `Evidence supporting this recommendation from ${roleLabel}: ${recommendation}`;
+  const conTopic = `Evidence favoring an alternative to this recommendation from ${roleLabel}: ${recommendation}`;
+
+  const [proQuery, conQuery] = await Promise.all([
+    referenceQueryBuilder.buildQuery({
+      topic: proTopic,
+      searchIntent: `High-quality evidence (trials, guidelines, comparative studies) that supports this reasoning: ${rationale}`,
+    }),
+    referenceQueryBuilder.buildQuery({
+      topic: conTopic,
+      searchIntent: `High-quality evidence that argues against this recommendation, or favors a different approach, given this reasoning: ${rationale}`,
+    }),
+  ]);
+  await recordAIUsage({ caseId, ownerId, operation: 'buildHeartTeamProEvidenceQuery', meta: proQuery.meta });
+  await recordAIUsage({ caseId, ownerId, operation: 'buildHeartTeamConEvidenceQuery', meta: conQuery.meta });
+
+  const [proOutcome, conOutcome] = await Promise.all([
+    findEvidenceWithFallback({
+      topic: proTopic,
+      searchIntent: `High-quality evidence (trials, guidelines, comparative studies) that supports this reasoning: ${rationale}`,
+      primaryQuery: proQuery.query,
+      maxResults: EVIDENCE_MAX_RESULTS,
+      minYear,
+      caseId,
+      ownerId,
+      operation: 'buildHeartTeamProEvidenceQueryBroadened',
+    }),
+    findEvidenceWithFallback({
+      topic: conTopic,
+      searchIntent: `High-quality evidence that argues against this recommendation, or favors a different approach, given this reasoning: ${rationale}`,
+      primaryQuery: conQuery.query,
+      maxResults: EVIDENCE_MAX_RESULTS,
+      minYear,
+      caseId,
+      ownerId,
+      operation: 'buildHeartTeamConEvidenceQueryBroadened',
+    }),
+  ]);
+  logger.info({
+    module: 'conferenceCaseService',
+    operation: 'getRoleEvidence',
+    caseId,
+    role,
+    proQuery: proOutcome.query,
+    conQuery: conOutcome.query,
+    proCount: proOutcome.results.length,
+    conCount: conOutcome.results.length,
+  });
+
+  const evidence = {
+    pro: { query: proOutcome.query, results: proOutcome.results },
+    con: { query: conOutcome.query, results: conOutcome.results },
+  };
+  await conferenceCaseRepository.update(caseId, {
+    heartTeamEvidence: { ...(caseState.heartTeamEvidence || {}), [role]: evidence },
+  });
+  return evidence;
+}
+
 /** Every conference case owned by the caller, most recent first. */
 async function listCases({ ownerId }) {
   const cases = await conferenceCaseRepository.listForOwner(ownerId);
@@ -356,6 +496,7 @@ module.exports = {
   updateReport,
   listCases,
   getHeartTeamResponses,
+  getRoleEvidence,
   getCachedReferenceLookup,
   cacheReferenceLookup,
   recordAIUsage,

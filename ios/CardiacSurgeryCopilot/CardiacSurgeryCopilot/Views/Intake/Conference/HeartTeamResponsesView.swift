@@ -15,23 +15,12 @@ import SwiftUI
 
 struct HeartTeamResponsesView: View {
     @StateObject private var viewModel: HeartTeamResponsesViewModel
+    @Binding var path: [ConferenceRoute]
+    private let caseId: String
 
-    #if DEBUG
-    /// Reaching this screen with this sentinel case id skips both AI
-    /// calls (case creation + heart-team generation) entirely and loads
-    /// canned responses instead -- see ConferenceHomeView's debug toolbar
-    /// button. Lets this screen's UI be iterated on without waiting on
-    /// the network every time. Never reachable in a Release build.
-    static let debugPreviewCaseId = "debug-preview"
-    #endif
-
-    init(caseId: String, viewModel: HeartTeamResponsesViewModel? = nil) {
-        #if DEBUG
-        if viewModel == nil, caseId == Self.debugPreviewCaseId {
-            _viewModel = StateObject(wrappedValue: HeartTeamResponsesViewModel(caseId: caseId, previewResponses: .debugExample))
-            return
-        }
-        #endif
+    init(caseId: String, path: Binding<[ConferenceRoute]>, viewModel: HeartTeamResponsesViewModel? = nil) {
+        self.caseId = caseId
+        _path = path
         _viewModel = StateObject(wrappedValue: viewModel ?? HeartTeamResponsesViewModel(caseId: caseId))
     }
 
@@ -48,8 +37,11 @@ struct HeartTeamResponsesView: View {
                     header
 
                     if let responses = viewModel.responses {
+                        followUpSummary
                         roleSelector
                         responseCard(for: viewModel.selectedRole, response: responses[viewModel.selectedRole])
+                        evidenceButton(for: viewModel.selectedRole)
+                        reportButton
                     } else if let errorMessage = viewModel.errorMessage {
                         ListErrorState(title: "Couldn't load heart team responses", message: errorMessage) {
                             Task { await viewModel.load() }
@@ -79,6 +71,40 @@ struct HeartTeamResponsesView: View {
             Text("Three members reviewed this case independently. Choose whose take to read -- you can switch anytime as part of the exercise.")
                 .font(.subheadline)
                 .foregroundStyle(Color.slateText)
+        }
+    }
+
+    /// Explicit either way -- no follow-up questions were needed is a
+    /// meaningful, worth-stating fact about this case, not just an absence
+    /// of UI. When there were some, this is how the trainee reviews what
+    /// was actually asked and how they answered it.
+    @ViewBuilder
+    private var followUpSummary: some View {
+        if viewModel.conversation.isEmpty {
+            HStack(spacing: 8) {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(Color.copilotPrimaryText)
+                Text("No follow-up questions were needed for this case.")
+                    .font(.footnote)
+                    .foregroundStyle(Color.slateText)
+            }
+        } else {
+            Button {
+                path.append(.followUpQuestions(caseId: caseId, entries: viewModel.conversation))
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "list.bullet.rectangle")
+                        .foregroundStyle(Color.copilotPrimaryText)
+                    Text("\(viewModel.conversation.count) follow-up question\(viewModel.conversation.count == 1 ? "" : "s") asked")
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.slateText.opacity(0.6))
+                }
+            }
+            .buttonStyle(.plain)
         }
     }
 
@@ -139,6 +165,37 @@ struct HeartTeamResponsesView: View {
         .id(role)
         .transition(.opacity)
     }
+
+    /// Keyed to the currently selected role, same as the card above --
+    /// tapping this always searches evidence for whichever role's
+    /// response is on screen right now.
+    private func evidenceButton(for role: HeartTeamRole) -> some View {
+        Button {
+            path.append(.heartTeamEvidence(caseId: caseId, role: role))
+        } label: {
+            Label("Evidence", systemImage: "text.book.closed.fill")
+                .font(.subheadline.weight(.semibold))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+        }
+        .buttonStyle(.copilotBordered)
+        .id(role)
+        .transition(.opacity)
+    }
+
+    /// Not role-specific -- the report covers the whole case, so unlike
+    /// evidenceButton this doesn't key off the selected role.
+    private var reportButton: some View {
+        Button {
+            path.append(.report(caseId: caseId))
+        } label: {
+            Label("View Full Report", systemImage: "doc.text.fill")
+                .font(.subheadline.weight(.semibold))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+        }
+        .buttonStyle(.copilotBordered)
+    }
 }
 
 #if DEBUG
@@ -167,6 +224,7 @@ extension HeartTeamResponses {
     NavigationStack {
         HeartTeamResponsesView(
             caseId: "abc123",
+            path: .constant([]),
             viewModel: HeartTeamResponsesViewModel(caseId: "abc123", previewResponses: .debugExample)
         )
     }

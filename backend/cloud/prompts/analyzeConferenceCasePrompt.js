@@ -1,12 +1,14 @@
 const { CONFERENCE_EDUCATOR_PERSONA } = require('./persona');
 const { EXTRACTED_CASE_FIELDS } = require('../schemas/conferenceExtractedCaseSchema');
 
-const ANALYZE_CONFERENCE_CASE_PROMPT_VERSION = '1.1.0';
+const ANALYZE_CONFERENCE_CASE_PROMPT_VERSION = '1.2.0';
 
 const FIELD_GUIDANCE = `Possible extractedCase fields (use only the ones relevant to this case; omit fields you have no information about; never invent values):
 ${EXTRACTED_CASE_FIELDS.map((field) => `- ${field}`).join('\n')}
 
-You may use other field names if something important doesn't fit the list above. Include an "uncertainties" field: a short array of strings describing clinically important facts that are still unknown or unclear. Do not pad it with trivial items.`;
+You may use other field names if something important doesn't fit the list above. Include an "uncertainties" field: a short array of strings describing clinically important facts that are still unknown or unclear. Do not pad it with trivial items.
+
+"riskScores" specifically covers operative risk stratification -- an STS score, a EuroSCORE II, or an explicit statement that no formal score was calculated. Any one of those is enough to populate it; once populated, that topic is fully resolved and should not be treated as still missing.`;
 
 /**
  * Builds the prompt used the first time a conference case is created,
@@ -51,7 +53,7 @@ You previously extracted a structured summary of a trainee's preoperative cardia
 
 ${FIELD_GUIDANCE}
 
-Merge the new answer into the existing structured case rather than starting over. Preserve previously captured information unless the new answer corrects it. Remove an item from "uncertainties" once it has been resolved.
+Merge the new answer into the existing structured case rather than starting over. Preserve previously captured information unless the new answer corrects it. The new answer MUST end up captured under some field in the returned extractedCase (an existing field, or a new one if nothing fits) -- a later step decides whether more questions are needed by reading this object alone, so an answer that isn't reflected in it will be asked about again. Remove an item from "uncertainties" once it has been resolved.
 
 Respond only with a JSON object of the form:
 {

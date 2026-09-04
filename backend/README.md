@@ -1,6 +1,6 @@
-# Cardiac Surgery Copilot Backend
+# Heart Team Copilot Backend
 
-Back4App Parse Cloud Code backend for **Cardiac Surgery Copilot**, an iOS
+Back4App Parse Cloud Code backend for **Heart Team Copilot**, an iOS
 app that helps cardiac surgery trainees prepare for the **heart team
 conference**: dictate/type a real case; the backend extracts structured
 clinical information, asks targeted follow-up questions one at a time,

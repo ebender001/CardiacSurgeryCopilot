@@ -34,7 +34,7 @@ enum AuthenticationServiceError: LocalizedError, Equatable {
         case .validation(let message):
             return message
         case .network:
-            return "Cardiac Surgery Copilot couldn't reach the server. Check your connection and try again."
+            return "Heart Team Copilot couldn't reach the server. Check your connection and try again."
         case .server:
             return "Something went wrong. Please try again."
         }

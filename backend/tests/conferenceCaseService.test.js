@@ -3,14 +3,18 @@ jest.mock('../cloud/repositories/aiCostRepository');
 jest.mock('../cloud/ai/conferenceCaseAnalyzer');
 jest.mock('../cloud/ai/conferenceQuestionGenerator');
 jest.mock('../cloud/ai/conferenceFinalizer');
+jest.mock('../cloud/ai/referenceQueryBuilder');
+jest.mock('../cloud/services/pubmedService');
 
 const conferenceCaseRepository = require('../cloud/repositories/conferenceCaseRepository');
 const aiCostRepository = require('../cloud/repositories/aiCostRepository');
 const conferenceCaseAnalyzer = require('../cloud/ai/conferenceCaseAnalyzer');
 const conferenceQuestionGenerator = require('../cloud/ai/conferenceQuestionGenerator');
 const conferenceFinalizer = require('../cloud/ai/conferenceFinalizer');
+const referenceQueryBuilder = require('../cloud/ai/referenceQueryBuilder');
+const pubmedService = require('../cloud/services/pubmedService');
 const conferenceCaseService = require('../cloud/services/conferenceCaseService');
-const { NotFoundError, InvalidStateError, AIProviderError } = require('../cloud/utils/errors');
+const { NotFoundError, InvalidStateError, ValidationError, AIProviderError } = require('../cloud/utils/errors');
 const { ConferenceCaseStatus } = require('../cloud/schemas/conferenceCaseStatus');
 
 function baseCaseState(overrides = {}) {
@@ -23,6 +27,8 @@ function baseCaseState(overrides = {}) {
     conversation: [],
     currentQuestion: null,
     report: null,
+    heartTeamResponses: null,
+    heartTeamEvidence: {},
     referenceLookups: {},
     promptVersion: {},
     aiModel: 'gpt-test',
@@ -398,6 +404,99 @@ describe('reference lookup caching', () => {
         }),
       }),
     });
+  });
+});
+
+describe('getRoleEvidence', () => {
+  const heartTeamResponses = {
+    surgeon: { recommendation: 'Proceed with CABG x3.', rationale: 'Three-vessel disease with reduced EF is a class I surgical indication.' },
+  };
+
+  it('rejects an unknown role without calling the repository', async () => {
+    await expect(
+      conferenceCaseService.getRoleEvidence({ caseId: 'case1', ownerId: 'user1', role: 'nurse' })
+    ).rejects.toThrow(ValidationError);
+    expect(conferenceCaseRepository.getById).not.toHaveBeenCalled();
+  });
+
+  it('throws InvalidStateError when heart team responses have not been generated yet', async () => {
+    conferenceCaseRepository.getById.mockResolvedValue(baseCaseState({ heartTeamResponses: null }));
+
+    await expect(
+      conferenceCaseService.getRoleEvidence({ caseId: 'case1', ownerId: 'user1', role: 'surgeon' })
+    ).rejects.toThrow(InvalidStateError);
+    expect(referenceQueryBuilder.buildQuery).not.toHaveBeenCalled();
+  });
+
+  it('returns cached evidence for that role without calling the query builder or PubMed', async () => {
+    const cachedEvidence = {
+      pro: { query: 'CABG[tiab]', results: [{ pmid: '111' }] },
+      con: { query: 'PCI[tiab]', results: [{ pmid: '222' }] },
+    };
+    conferenceCaseRepository.getById.mockResolvedValue(
+      baseCaseState({ heartTeamResponses, heartTeamEvidence: { surgeon: cachedEvidence } })
+    );
+
+    const result = await conferenceCaseService.getRoleEvidence({ caseId: 'case1', ownerId: 'user1', role: 'surgeon' });
+
+    expect(result).toEqual(cachedEvidence);
+    expect(referenceQueryBuilder.buildQuery).not.toHaveBeenCalled();
+    expect(pubmedService.findReferences).not.toHaveBeenCalled();
+    expect(conferenceCaseRepository.update).not.toHaveBeenCalled();
+  });
+
+  it('builds pro/con queries, searches PubMed within the 10-year window, and caches the result', async () => {
+    conferenceCaseRepository.getById.mockResolvedValue(baseCaseState({ heartTeamResponses }));
+    referenceQueryBuilder.buildQuery
+      .mockResolvedValueOnce({ query: 'CABG three-vessel[tiab]', meta: { model: 'gpt-test', usage: { prompt_tokens: 10, completion_tokens: 5 } }, promptVersion: '1.0.0' })
+      .mockResolvedValueOnce({ query: 'PCI multivessel[tiab]', meta: { model: 'gpt-test', usage: { prompt_tokens: 10, completion_tokens: 5 } }, promptVersion: '1.0.0' });
+    pubmedService.findReferences
+      .mockResolvedValueOnce([{ pmid: '111', title: 'CABG outcomes' }])
+      .mockResolvedValueOnce([{ pmid: '222', title: 'PCI outcomes' }]);
+
+    const result = await conferenceCaseService.getRoleEvidence({ caseId: 'case1', ownerId: 'user1', role: 'surgeon' });
+
+    expect(referenceQueryBuilder.buildQuery).toHaveBeenCalledTimes(2);
+    const expectedMinYear = new Date().getFullYear() - 10;
+    expect(pubmedService.findReferences).toHaveBeenNthCalledWith(1, { query: 'CABG three-vessel[tiab]', maxResults: 5, minYear: expectedMinYear });
+    expect(pubmedService.findReferences).toHaveBeenNthCalledWith(2, { query: 'PCI multivessel[tiab]', maxResults: 5, minYear: expectedMinYear });
+    expect(result).toEqual({
+      pro: { query: 'CABG three-vessel[tiab]', results: [{ pmid: '111', title: 'CABG outcomes' }] },
+      con: { query: 'PCI multivessel[tiab]', results: [{ pmid: '222', title: 'PCI outcomes' }] },
+    });
+    expect(conferenceCaseRepository.update).toHaveBeenCalledWith('case1', {
+      heartTeamEvidence: { surgeon: result },
+    });
+    expect(aiCostRepository.record).toHaveBeenCalledTimes(2);
+  });
+
+  it('asks the query builder for a broader query when the first PubMed search returns nothing', async () => {
+    conferenceCaseRepository.getById.mockResolvedValue(baseCaseState({ heartTeamResponses }));
+    referenceQueryBuilder.buildQuery
+      .mockResolvedValueOnce({ query: 'overly[tiab] AND narrow[tiab] AND query[tiab]', meta: { model: 'gpt-test', usage: { prompt_tokens: 10, completion_tokens: 5 } }, promptVersion: '1.1.0' }) // pro: primary
+      .mockResolvedValueOnce({ query: 'PCI multivessel[tiab]', meta: { model: 'gpt-test', usage: { prompt_tokens: 10, completion_tokens: 5 } }, promptVersion: '1.1.0' }) // con: primary, succeeds
+      .mockResolvedValueOnce({ query: 'CABG[mesh]', meta: { model: 'gpt-test', usage: { prompt_tokens: 12, completion_tokens: 6 } }, promptVersion: '1.1.0' }); // pro: broadened
+    pubmedService.findReferences
+      .mockResolvedValueOnce([]) // pro: primary query returns nothing (call 1, started immediately by Promise.all)
+      .mockResolvedValueOnce([{ pmid: '222', title: 'PCI outcomes' }]) // con: primary query succeeds, no broadening needed (call 2, started immediately by Promise.all)
+      .mockResolvedValueOnce([{ pmid: '999', title: 'CABG broadened result' }]); // pro: broadened query, only awaited after call 1 resolves empty (call 3)
+
+    const result = await conferenceCaseService.getRoleEvidence({ caseId: 'case1', ownerId: 'user1', role: 'surgeon' });
+
+    const expectedMinYear = new Date().getFullYear() - 10;
+    expect(referenceQueryBuilder.buildQuery).toHaveBeenCalledTimes(3);
+    expect(referenceQueryBuilder.buildQuery).toHaveBeenNthCalledWith(3, {
+      topic: 'Evidence supporting this recommendation from a cardiac surgeon: Proceed with CABG x3.',
+      searchIntent: expect.stringContaining('returned zero results'),
+    });
+    expect(pubmedService.findReferences).toHaveBeenCalledTimes(3);
+    expect(pubmedService.findReferences).toHaveBeenNthCalledWith(1, { query: 'overly[tiab] AND narrow[tiab] AND query[tiab]', maxResults: 5, minYear: expectedMinYear });
+    expect(pubmedService.findReferences).toHaveBeenNthCalledWith(2, { query: 'PCI multivessel[tiab]', maxResults: 5, minYear: expectedMinYear });
+    expect(pubmedService.findReferences).toHaveBeenNthCalledWith(3, { query: 'CABG[mesh]', maxResults: 5, minYear: expectedMinYear });
+    // The reflected query is whichever one actually produced the results shown.
+    expect(result.pro).toEqual({ query: 'CABG[mesh]', results: [{ pmid: '999', title: 'CABG broadened result' }] });
+    expect(result.con).toEqual({ query: 'PCI multivessel[tiab]', results: [{ pmid: '222', title: 'PCI outcomes' }] });
+    expect(aiCostRepository.record).toHaveBeenCalledTimes(3);
   });
 });
 

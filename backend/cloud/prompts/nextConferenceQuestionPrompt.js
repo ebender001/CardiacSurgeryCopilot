@@ -1,6 +1,6 @@
 const { CONFERENCE_EDUCATOR_PERSONA } = require('./persona');
 
-const NEXT_CONFERENCE_QUESTION_PROMPT_VERSION = '1.1.0';
+const NEXT_CONFERENCE_QUESTION_PROMPT_VERSION = '1.2.0';
 
 /**
  * Builds the prompt used to decide whether one more follow-up question is
@@ -26,11 +26,13 @@ Consider the case sufficiently complete once you can reasonably:
 4. describe the imaging/labs that support the diagnosis and surgical plan,
 5. anticipate the anatomical or technical considerations that will shape the operative strategy,
 6. anticipate a meaningful discussion of alternatives and where reasonable heart-team members might disagree,
-7. anticipate what a cardiologist on the heart team is likely to raise -- e.g. whether a catheter-based or non-surgical option was considered, and how operative risk was stratified (e.g. an STS or EuroSCORE II risk score).
+7. anticipate what a cardiologist on the heart team is likely to raise -- e.g. whether a catheter-based or non-surgical option was considered, and whether operative risk was stratified in some way.
+
+Operative risk stratification (point 7) is ONE consideration, not two: an STS score, a EuroSCORE II, or an explicit statement that no formal risk score was calculated all equally satisfy it. Once the structured case or the conversation below addresses risk stratification in ANY of those ways, it is fully resolved -- never ask about the other score "for completeness," and never ask about risk stratification again in a later question.
 
 Do not keep asking questions simply because more detail could theoretically be gathered. Only ask about something if it would materially change the operative plan or the conference discussion. A trainee presenting a case they genuinely don't have every detail for is normal -- unresolved gaps belong in the report's "Missing information" section, not an endless follow-up loop.
 
-If another question is needed, choose the single highest-value missing item. Never re-ask about information already present in the structured case or the conversation below. Keep the question concise, specific to this case, and phrased the way a thoughtful attending would ask it.
+If another question is needed, choose the single highest-value missing item. Before writing it, check both the structured case and every question already asked below (including its answer) -- never re-ask about a topic already covered there, even if you would phrase it differently, frame it around a different specific tool, or it only partially overlaps a topic that's already been addressed. When genuinely unsure whether a topic is already covered, treat it as covered and move on rather than asking again. Keep the question concise, specific to this case, and phrased the way a thoughtful attending would ask it.
 
 Respond only with a JSON object of one of these two forms:
 { "needsQuestion": false, "question": null }

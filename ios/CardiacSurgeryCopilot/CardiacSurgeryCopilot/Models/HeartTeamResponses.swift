@@ -11,7 +11,7 @@
 
 import Foundation
 
-enum HeartTeamRole: String, CaseIterable, Identifiable, Hashable {
+enum HeartTeamRole: String, CaseIterable, Identifiable, Hashable, Decodable {
     case surgeon
     case nonInterventionalCardiologist
     case interventionalCardiologist

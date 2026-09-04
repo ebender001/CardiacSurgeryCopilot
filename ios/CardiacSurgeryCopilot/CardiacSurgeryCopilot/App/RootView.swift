@@ -26,7 +26,7 @@ struct RootView: View {
                     loadingView
                 case .signedOut:
                     WelcomeView(viewModel: authViewModel)
-                case .signedIn(let user):
+                case .signedIn:
                     ConferenceHomeView(onSignOut: {
                         Task { await authViewModel.signOut() }
                     })

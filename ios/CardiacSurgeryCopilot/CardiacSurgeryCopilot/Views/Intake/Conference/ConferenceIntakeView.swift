@@ -17,16 +17,17 @@ struct ConferenceIntakeView: View {
 
     init(path: Binding<[ConferenceRoute]>, viewModel: ConferenceIntakeViewModel? = nil) {
         _path = path
-        _viewModel = StateObject(wrappedValue: viewModel ?? ConferenceIntakeViewModel(narrativeText: Self.debugSeedNarrative))
+        _viewModel = StateObject(wrappedValue: viewModel ?? ConferenceIntakeViewModel())
     }
 
-    /// DEBUG-only seed text so the create-case round trip (backend AI
-    /// extraction + follow-up-question decision) can be exercised without
-    /// retyping a full case narrative every launch. Empty in Release
-    /// builds -- never ships pre-filled clinical-sounding text. Remove
-    /// once there's a faster way to get a test case in (saved drafts,
-    /// dictation, etc.).
-    private static var debugSeedNarrative: String {
+    /// DEBUG-only seed text used solely by ConferenceHomeView's ladybug
+    /// shortcut, which creates a real backend case directly (bypassing
+    /// this screen's text field) so the create-case round trip can be
+    /// exercised without retyping a full narrative every time. This
+    /// screen itself no longer pre-fills its editor with it -- a new case
+    /// always starts blank. Empty in Release builds -- never ships
+    /// clinical-sounding text anywhere.
+    static var debugSeedNarrative: String {
         #if DEBUG
         return "A 64-year-old male presents with an NSTEMI. Echocardiogram shows LVEF 35%, moderate mitral regurgitation, and mild aortic stenosis. He is an insulin-dependent diabetic, admitted yesterday. Cardiac catheterization shows three-vessel coronary artery disease: 90% proximal LAD stenosis, 70% stenosis of a large OM1 branch, and 100% occlusion of the RCA with good left-to-right collaterals to a moderate-sized PDA. He is currently asymptomatic on IV heparin and nitroglycerin. He is a Jehovah's Witness."
         #else
@@ -132,15 +133,10 @@ struct ConferenceIntakeView: View {
                 guard let created = await viewModel.submit() else { return }
                 if created.nextQuestion == nil {
                     // Nothing more needed -- skip straight to the heart
-                    // team responses rather than a debug screen with
-                    // "no follow-up question" and nothing else to do.
+                    // team responses.
                     path.append(.heartTeamResponses(caseId: created.id))
                 } else {
-                    // A follow-up question is pending, but there's no
-                    // interview UI to answer it yet -- show what came
-                    // back so the extraction/question loop is still
-                    // verifiable end-to-end.
-                    path.append(.detail(caseId: created.id, initialCase: created))
+                    path.append(.interview(caseId: created.id, initialCase: created))
                 }
             }
         } label: {

@@ -36,6 +36,7 @@ function toClientJSON(parseObject) {
     currentQuestion: parseObject.get('currentQuestion') || null,
     report: parseObject.get('report') || null,
     heartTeamResponses: parseObject.get('heartTeamResponses') || null,
+    heartTeamEvidence: parseObject.get('heartTeamEvidence') || {},
     promptVersion: parseObject.get('promptVersion') || {},
     aiModel: parseObject.get('aiModel') || null,
     aiCostUSD: parseObject.get('aiCostUSD') || 0,

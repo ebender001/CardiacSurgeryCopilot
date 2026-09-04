@@ -12,7 +12,27 @@ const { ExternalServiceError } = require('../utils/errors');
 const HOST = 'eutils.ncbi.nlm.nih.gov';
 const BASE_PATH = '/entrez/eutils';
 const DEFAULT_TIMEOUT_MS = 15000;
-const DEFAULT_MAX_RETRIES = 1;
+/**
+ * Higher than a typical retry budget because NCBI's unauthenticated rate
+ * limit (3 requests/second/IP -- see identificationParams()'s optional
+ * PUBMED_API_KEY, which raises this to 10/sec if ever configured) is easy
+ * to burst past: a single evidence request now fires up to four esearch
+ * calls (pro/con, each with its own empty-result fallback -- see
+ * conferenceCaseService.findEvidenceWithFallback), and Back4App's shared
+ * function pool means other cases/users can be hitting NCBI from the same
+ * IP concurrently. Paired with retryDelayMs's backoff below.
+ */
+const DEFAULT_MAX_RETRIES = 4;
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Linear backoff (350ms, 700ms, 1050ms, ...) -- enough to clear NCBI's
+ * one-second rate-limit window without a request hanging excessively long. */
+function retryDelayMs(attemptsLeft) {
+  return 350 * (DEFAULT_MAX_RETRIES - attemptsLeft);
+}
 
 /**
  * NCBI asks (but does not require) an API key for higher rate limits and
@@ -60,6 +80,12 @@ async function requestWithRetry(path, attemptsLeft, context) {
       const retriable = statusCode === 429 || statusCode >= 500;
       if (retriable && attemptsLeft > 0) {
         logger.warn({ ...context, event: 'pubmed_retry', statusCode, latencyMs });
+        // A 429 is a rate limit, not a transient failure -- retrying
+        // immediately (as this used to) just trips it again. Only 429
+        // needs the wait; a 5xx is worth retrying right away.
+        if (statusCode === 429) {
+          await delay(retryDelayMs(attemptsLeft));
+        }
         return requestWithRetry(path, attemptsLeft - 1, context);
       }
       logger.error({ ...context, event: 'pubmed_error', statusCode, latencyMs });
@@ -81,11 +107,22 @@ async function requestWithRetry(path, attemptsLeft, context) {
   }
 }
 
-async function searchIds(query, maxResults) {
+/**
+ * `minYear`, when given, restricts results to publications dated on or
+ * after Jan 1 of that year (NCBI's `mindate`/`datetype=pdat` esearch
+ * params) -- applied at the search itself rather than filtering results
+ * after the fact, so `maxResults` recent articles are actually returned
+ * instead of possibly-fewer recent ones surviving a post-hoc filter.
+ * Relevance sort (not date sort) is kept even with a date floor, so the
+ * most relevant *recent* articles surface first rather than merely the
+ * newest ones regardless of relevance.
+ */
+async function searchIds(query, maxResults, { minYear } = {}) {
   const term = encodeURIComponent(query);
+  const dateParams = minYear ? `&datetype=pdat&mindate=${minYear}&maxdate=3000` : '';
   const path =
     `${BASE_PATH}/esearch.fcgi?db=pubmed&retmode=json&sort=relevance&retmax=${maxResults}` +
-    `&term=${term}${identificationParams()}`;
+    `&term=${term}${dateParams}${identificationParams()}`;
   const raw = await requestWithRetry(path, DEFAULT_MAX_RETRIES, { operation: 'esearch' });
 
   let parsed;
@@ -228,9 +265,12 @@ function toClientResult(record) {
  * found -- never fabricates a citation. Result order always matches
  * `esearch`'s relevance-ranked id list, even though `efetch` doesn't
  * strictly guarantee it echoes ids back in the requested order.
+ *
+ * `minYear`, when given, is passed through to `searchIds` to restrict
+ * results to that publication year or later (see its doc comment).
  */
-async function findReferences({ query, maxResults = 5 }) {
-  const ids = await searchIds(query, maxResults);
+async function findReferences({ query, maxResults = 5, minYear } = {}) {
+  const ids = await searchIds(query, maxResults, { minYear });
   if (ids.length === 0) return [];
 
   const medlineText = await fetchMedline(ids);

@@ -13,6 +13,7 @@ require('./functions/listConferenceCases');
 require('./functions/updateConferenceReport');
 require('./functions/findConferenceReferences');
 require('./functions/getConferenceHeartTeamResponses');
+require('./functions/getHeartTeamRoleEvidence');
 
 // Shared, cross-workflow
 require('./functions/correctDictation');

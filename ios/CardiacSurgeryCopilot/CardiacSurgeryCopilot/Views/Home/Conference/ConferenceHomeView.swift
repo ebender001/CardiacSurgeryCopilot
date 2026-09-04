@@ -15,6 +15,11 @@ struct ConferenceHomeView: View {
     @State private var isConfirmingSignOut = false
     let onSignOut: () -> Void
 
+    #if DEBUG
+    @State private var isCreatingDebugCase = false
+    @State private var debugCaseErrorMessage: String?
+    #endif
+
     init(onSignOut: @escaping () -> Void, viewModel: ConferenceHomeViewModel? = nil) {
         self.onSignOut = onSignOut
         _viewModel = StateObject(wrappedValue: viewModel ?? ConferenceHomeViewModel())
@@ -85,7 +90,19 @@ struct ConferenceHomeView: View {
                     Section {
                         ForEach(viewModel.recentCases) { record in
                             Button {
-                                path.append(.detail(caseId: record.id, initialCase: nil))
+                                switch record.status {
+                                case .completed:
+                                    path.append(.report(caseId: record.id))
+                                case .readyToFinalize:
+                                    // No pending question by definition --
+                                    // go straight to heart team responses
+                                    // rather than through ConferenceInterviewView,
+                                    // which would otherwise show a blank
+                                    // screen for a moment before redirecting.
+                                    path.append(.heartTeamResponses(caseId: record.id))
+                                case .collectingInformation:
+                                    path.append(.interview(caseId: record.id, initialCase: nil))
+                                }
                             } label: {
                                 ConferenceCaseRow(record: record)
                             }
@@ -121,11 +138,16 @@ struct ConferenceHomeView: View {
                 #if DEBUG
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
-                        path.append(.heartTeamResponses(caseId: HeartTeamResponsesView.debugPreviewCaseId))
+                        Task { await createDebugCaseAndNavigate() }
                     } label: {
-                        Image(systemName: "ladybug.fill")
+                        if isCreatingDebugCase {
+                            ProgressView()
+                        } else {
+                            Image(systemName: "ladybug.fill")
+                        }
                     }
-                    .accessibilityLabel("Debug: skip to Heart Team")
+                    .disabled(isCreatingDebugCase)
+                    .accessibilityLabel("Debug: create a real case from seed narrative and skip to Heart Team")
                 }
                 #endif
                 if !viewModel.recentCases.isEmpty {
@@ -142,12 +164,50 @@ struct ConferenceHomeView: View {
                 Button("Sign Out", role: .destructive, action: onSignOut)
                 Button("Cancel", role: .cancel) {}
             }
+            #if DEBUG
+            .alert("Debug case failed", isPresented: debugErrorBinding) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(debugCaseErrorMessage ?? "")
+            }
+            #endif
         }
     }
 
+    #if DEBUG
+    private var debugErrorBinding: Binding<Bool> {
+        Binding(
+            get: { debugCaseErrorMessage != nil },
+            set: { if !$0 { debugCaseErrorMessage = nil } }
+        )
+    }
+
+    /// Creates a REAL backend case from the same seed narrative
+    /// ConferenceIntakeView pre-fills, then routes exactly like
+    /// ConferenceIntakeView's own Continue button would -- straight to
+    /// heart team responses if the case needs no follow-up, or into the
+    /// interview loop if it does (the seed narrative doesn't always land
+    /// ready-to-finalize; it depends on what the question-generator
+    /// decides is still missing). Never used in Release.
+    private func createDebugCaseAndNavigate() async {
+        isCreatingDebugCase = true
+        defer { isCreatingDebugCase = false }
+        do {
+            let created = try await BackendService.createConferenceCase(narrative: ConferenceIntakeView.debugSeedNarrative)
+            if created.nextQuestion == nil {
+                path.append(.heartTeamResponses(caseId: created.id))
+            } else {
+                path.append(.interview(caseId: created.id, initialCase: created))
+            }
+        } catch {
+            debugCaseErrorMessage = (error as? LocalizedError)?.errorDescription ?? "Something went wrong. Please try again."
+        }
+    }
+    #endif
+
     private var header: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text("Heart Team")
+            Text("Heart Team Copilot")
                 .font(.title2.weight(.bold))
                 .foregroundStyle(.primary)
             Text("Preoperative conference prep")
@@ -168,14 +228,20 @@ struct ConferenceHomeView: View {
         switch route {
         case .newCase:
             ConferenceIntakeView(path: $path)
-        case .detail(let caseId, let initialCase):
-            if let initialCase {
-                ConferenceCaseDebugView(caseId: caseId, initialCase: initialCase)
-            } else {
-                ComingSoonView(title: "Case", detail: "Case \(caseId) -- the report view isn't built yet.")
-            }
+        case .interview(let caseId, let initialCase):
+            ConferenceInterviewView(caseId: caseId, initialCase: initialCase, path: $path)
         case .heartTeamResponses(let caseId):
-            HeartTeamResponsesView(caseId: caseId)
+            HeartTeamResponsesView(caseId: caseId, path: $path)
+        case .heartTeamEvidence(let caseId, let role):
+            HeartTeamEvidenceView(caseId: caseId, role: role, path: $path)
+        case .report(let caseId):
+            ConferenceReportView(caseId: caseId, path: $path)
+        case .followUpQuestions(_, let entries):
+            ConferenceFollowUpQuestionsView(entries: entries)
+        case .referenceLookup(let caseId, let topic, let searchIntent):
+            ConferenceReferenceLookupView(caseId: caseId, topic: topic, searchIntent: searchIntent, path: $path)
+        case .articleDetail(let article):
+            PubMedArticleDetailView(article: article)
         }
     }
 }

@@ -1,6 +1,6 @@
-# Cardiac Surgery Copilot Website
+# Heart Team Copilot Website
 
-Public landing page for Cardiac Surgery Copilot. Static HTML/CSS/JS -- no
+Public landing page for Heart Team Copilot. Static HTML/CSS/JS -- no
 build step, no framework, no npm packages.
 
 ```text
