@@ -10,10 +10,9 @@
 //
 //  Flow: View -> ViewModel -> BackendService -> Back4App Cloud Function.
 //
-//  Scoped to account deletion and the two recent-cases lists for now --
-//  the rest of the Conference/WWYD case functions (cscCreateConferenceCase,
-//  cscCreateWwydCase, etc., see backend/README.md) get their own
-//  `ParseCloudable` request types here as each workflow's UI is built.
+//  Scoped to what the app's UI currently needs -- the rest of the
+//  Conference case functions (see backend/README.md) get their own
+//  `ParseCloudable` request types here as each screen is built.
 //
 
 import Foundation
@@ -108,17 +107,10 @@ enum BackendService {
         try await run(GetConferenceHeartTeamResponsesFunction(caseId: caseId))
     }
 
-    /// Every What Would You Do case the signed-in trainee owns, most
-    /// recent first -- the single source of truth for the What Would You
-    /// Do tab's Recent Discussions list.
-    static func listWwydCases() async throws -> [WwydCaseSummary] {
-        try await run(ListWwydCasesFunction()).cases
-    }
-
     /// Permanently deletes the signed-in account and every case/AI-cost
-    /// record it owns, across both workflows. Irreversible, and there is
-    /// no confirmation step on the backend -- the caller is responsible
-    /// for confirming with the person first.
+    /// record it owns. Irreversible, and there is no confirmation step on
+    /// the backend -- the caller is responsible for confirming with the
+    /// person first.
     static func deleteAccount() async throws {
         _ = try await run(DeleteAccountFunction())
     }
@@ -164,15 +156,6 @@ private struct ListConferenceCasesResponse: Decodable {
 private struct ListConferenceCasesFunction: ParseCloudable {
     typealias ReturnType = ListConferenceCasesResponse
     var functionJobName = "cscListConferenceCases"
-}
-
-private struct ListWwydCasesResponse: Decodable {
-    let cases: [WwydCaseSummary]
-}
-
-private struct ListWwydCasesFunction: ParseCloudable {
-    typealias ReturnType = ListWwydCasesResponse
-    var functionJobName = "cscListWwydCases"
 }
 
 private struct DeleteAccountResponse: Decodable {

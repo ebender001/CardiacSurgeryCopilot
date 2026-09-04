@@ -33,7 +33,7 @@ struct WelcomeView: View {
 
                 Spacer(minLength: 20)
 
-                Text("Prepare cardiac surgery cases for the heart team conference, or sharpen your judgment with a live What Would You Do discussion.")
+                Text("Prepare cardiac surgery cases for the heart team conference, with a structured report and multiple specialty perspectives.")
                     .font(.body)
                     .foregroundStyle(Color.slateText)
                     .multilineTextAlignment(.center)

@@ -4,9 +4,9 @@
 //
 //  Shown in place of a recent-items list when loading it from the backend
 //  fails with nothing previously loaded to fall back to (see
-//  ConferenceHomeViewModel/WwydHomeViewModel.refresh() -- a background
-//  refresh failing while a list is already on screen just keeps that
-//  stale list instead of showing this).
+//  ConferenceHomeViewModel.refresh() -- a background refresh failing
+//  while a list is already on screen just keeps that stale list instead
+//  of showing this).
 //
 
 import SwiftUI

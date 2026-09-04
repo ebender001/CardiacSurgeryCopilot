@@ -2,10 +2,9 @@
 //  ConferenceHomeView.swift
 //  CardiacSurgeryCopilot
 //
-//  Root of the Heart Team tab's own NavigationStack (see HomeTabView).
+//  Root of the signed-in app's single NavigationStack (see RootView).
 //  Everything in this workflow (intake, interview, report) belongs here as
-//  pushes onto this stack, mirroring MMCoach's single-workflow HomeView --
-//  just scoped to one of the app's two tabs instead of the whole app.
+//  pushes onto this stack, mirroring MMCoach's single-workflow HomeView.
 //
 
 import SwiftUI
@@ -13,6 +12,7 @@ import SwiftUI
 struct ConferenceHomeView: View {
     @StateObject private var viewModel: ConferenceHomeViewModel
     @State private var path: [ConferenceRoute] = []
+    @State private var isConfirmingSignOut = false
     let onSignOut: () -> Void
 
     init(onSignOut: @escaping () -> Void, viewModel: ConferenceHomeViewModel? = nil) {
@@ -112,7 +112,7 @@ struct ConferenceHomeView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button {
-                        onSignOut()
+                        isConfirmingSignOut = true
                     } label: {
                         Image(systemName: "person.crop.circle")
                     }
@@ -133,6 +133,14 @@ struct ConferenceHomeView: View {
                         EditButton()
                     }
                 }
+            }
+            .confirmationDialog(
+                "Sign Out",
+                isPresented: $isConfirmingSignOut,
+                titleVisibility: .visible
+            ) {
+                Button("Sign Out", role: .destructive, action: onSignOut)
+                Button("Cancel", role: .cancel) {}
             }
         }
     }

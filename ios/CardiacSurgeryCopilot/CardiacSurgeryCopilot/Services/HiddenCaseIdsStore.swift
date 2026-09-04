@@ -2,15 +2,13 @@
 //  HiddenCaseIdsStore.swift
 //  CardiacSurgeryCopilot
 //
-//  Each recent-cases list (Heart Team, What Would You Do) is sourced
-//  entirely from the backend (see BackendService.listConferenceCases /
-//  listWwydCases) -- this store holds only a small local denylist of case
-//  ids the trainee has swiped away, so "removing" an item from a list
-//  stays a per-device UI preference rather than deleting the case's
-//  backend record. One store per workflow, distinguished by `namespace`,
-//  since the two case id spaces are otherwise unrelated (a conference
-//  case id and a WWYD case id could theoretically collide as raw
-//  strings).
+//  The Recent Cases list is sourced entirely from the backend (see
+//  BackendService.listConferenceCases) -- this store holds only a small
+//  local denylist of case ids the trainee has swiped away, so "removing"
+//  an item from the list stays a per-device UI preference rather than
+//  deleting the case's backend record. Takes a `namespace` (currently
+//  always "conference") so a future second workflow's case ids -- an
+//  unrelated id space -- can't collide with this one's as raw strings.
 //
 
 import Foundation

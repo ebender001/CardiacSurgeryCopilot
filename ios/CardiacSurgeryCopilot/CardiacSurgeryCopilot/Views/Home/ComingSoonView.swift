@@ -3,9 +3,8 @@
 //  CardiacSurgeryCopilot
 //
 //  Temporary destination for routes that don't have a real screen yet
-//  (case intake, the interview/report/conversation views). Delete each
-//  usage as the real destination is built -- see ConferenceHomeView/
-//  WwydHomeView's `destination(for:)`.
+//  (the interview/report views). Delete each usage as the real
+//  destination is built -- see ConferenceHomeView's `destination(for:)`.
 //
 
 import SwiftUI

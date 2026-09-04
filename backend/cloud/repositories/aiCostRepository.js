@@ -1,16 +1,16 @@
 /**
  * The only module that touches Parse.Object/Parse.Query directly for
  * CSCCaseAICost -- one row per AI provider call, so cost is auditable
- * per-operation rather than only visible as a running total. Feeds each
- * case class's own `incrementAIUsage`-style running-total field (see
- * conferenceCaseRepository.js / wwydCaseRepository.js) -- this module
- * never touches either case class directly.
+ * per-operation rather than only visible as a running total. Feeds the
+ * case's own `incrementAIUsage`-style running-total field (see
+ * conferenceCaseRepository.js) -- this module never touches the case
+ * class directly.
  *
- * Unlike MMCoach's single-case-class aiCostRepository, this app has two
- * case classes (CSCConferenceCase, CSCWwydCase), so a row is tagged by a
- * plain `caseId` string + `caseType` ('conference' | 'wwyd') instead of a
- * strict Parse Pointer to one specific class -- a Pointer field can't
- * cleanly point at either of two different classes across rows.
+ * Unlike MMCoach's aiCostRepository, a row here is tagged by a plain
+ * `caseId` string + `caseType` (currently always `'conference'`) instead
+ * of a strict Parse Pointer to one specific class -- kept generic rather
+ * than a Pointer to CSCConferenceCase so a future second workflow doesn't
+ * need a schema migration to reuse this same cost-logging table.
  *
  * Uses the master key for the same reason the case repositories do: only
  * Cloud Code should read/write this class. Per-object ACL below is

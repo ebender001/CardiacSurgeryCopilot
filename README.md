@@ -1,45 +1,48 @@
 # Cardiac Surgery Copilot
 
-An iOS app for cardiac surgery trainees with two workflows:
+A native iOS app that helps cardiac surgery trainees prepare for the
+**heart team conference**: dictate or type a real case, answer a few
+AI-generated follow-up questions, and get a structured prep report —
+Diagnosis → Indication → Missing information → Operative strategy →
+Alternatives → Controversies → Technical considerations → Postoperative
+concerns → Evidence/guidelines (with PubMed references) — plus three
+distinct, in-character heart-team-member perspectives on the same case
+(a surgeon, a non-interventional cardiologist, and an aggressive
+interventional cardiologist).
 
-1. **Preoperative Case Conference** — dictate or type a real case, answer a
-   few AI-generated follow-up questions, and get a structured prep report:
-   Diagnosis → Indication → Missing information → Operative strategy →
-   Alternatives → Controversies → Technical considerations → Postoperative
-   concerns → Evidence/guidelines (with PubMed references).
-2. **What Would You Do** — dictate or type a short real case and get a
-   condensed case presentation plus a starting discussion question, then
-   hold a live back-and-forth conversation with an AI faculty persona that
-   questions your reasoning.
+This project reuses proven infrastructure (authentication, on-device PHI
+screening, Back4App/Parse plumbing, Cloud Code layering, AI request
+architecture, website skeleton, shared UI) from a sibling project,
+**MMCoach**.
 
-This project reuses proven infrastructure (authentication, dictation/
-speech-to-text, on-device PHI screening, Back4App/Parse plumbing, Cloud
-Code layering, AI request architecture, subscriptions, website skeleton,
-shared UI) from a sibling project, **MMCoach**, adapted for these two new
-workflows. See `/Users/ebender/.claude/plans/reflective-toasting-pond.md`
-for the scaffolding plan this repo was built from.
+An earlier version of this app also had a second, separate "What Would
+You Do" workflow (a live case-discussion mode); it was removed to narrow
+scope back to the single heart-team conference workflow above. Some
+backend field names (`caseType`, `namespace` in `HiddenCaseIdsStore`)
+stay deliberately generic as a result, so a second workflow could be
+reintroduced later without a schema migration.
 
 ```text
 CardiacSurgeryCopilot/
-├── ios/                # Native iOS/SwiftUI client (Xcode project)
-├── backend/             # Back4App Parse Cloud Code backend
-├── website/              # Static marketing site (GitHub Pages)
-├── docs/                 # Medical dictionaries, screenshots, notes
-└── .github/workflows/    # Website deploy workflow
+├── ios/                  # Native iOS/SwiftUI client (Xcode project)
+├── backend/               # Back4App Parse Cloud Code backend
+├── website/                # Static marketing site (GitHub Pages)
+├── docs/                    # Medical dictionaries, screenshots, notes
+└── .github/workflows/        # Website deploy workflow
 ```
 
 - **Backend**: see `backend/README.md` for architecture, Cloud Functions,
   Parse schema, and deployment via the Back4App CLI (`b4a deploy`).
 - **Website**: see `website/README.md` for local dev and deploy.
-- **iOS**: not yet scaffolded — see the plan's §6–7 for what's reused from
-  MMCoach vs. newly built.
+- **iOS**: see `ios/CardiacSurgeryCopilot/` — open the `.xcodeproj` in Xcode.
 
 ## Status
 
-- ✅ Backend shared foundation (AI request architecture, PubMed lookup,
-  logging/validation/errors, AI cost tracking) ported from MMCoach.
-- ✅ Backend Preoperative Case Conference workflow.
-- ✅ Backend What Would You Do workflow.
-- ✅ Website (rebranded, both workflows described).
-- ⬜ iOS app (auth, dictation/PHI, subscriptions, and both workflows' UI —
-  not yet built).
+- ✅ Backend: heart team conference workflow (create → follow-up
+  questions → nine-section report), heart-team-perspectives generation,
+  PubMed reference lookup, account deletion, AI cost tracking.
+- ✅ Website (rebranded, single workflow described).
+- 🟡 iOS: auth (email + Apple), Home screen, case intake (typed text,
+  dictation not yet ported), heart-team-responses screen. Still needed:
+  dictation/PHI screening, the real interview loop (answering follow-up
+  questions), the finalize/report view, and subscriptions.
