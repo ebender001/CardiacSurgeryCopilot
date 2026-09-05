@@ -378,7 +378,7 @@ describe('reference lookup caching', () => {
   });
 
   it('getCachedReferenceLookup returns a previously cached lookup for that topic', async () => {
-    const cachedLookup = { query: 'valve choice[tiab]', results: [{ pmid: '111' }], cachedAt: '2026-01-01T00:00:00.000Z' };
+    const cachedLookup = { topic: 'Valve choice', query: 'valve choice[tiab]', results: [{ pmid: '111' }], cachedAt: '2026-01-01T00:00:00.000Z' };
     conferenceCaseRepository.getById.mockResolvedValue(baseCaseState({ referenceLookups: { 'Valve choice': cachedLookup } }));
 
     const { cached } = await conferenceCaseService.getCachedReferenceLookup({ caseId: 'case1', ownerId: 'user1', topic: 'Valve choice' });
@@ -386,10 +386,10 @@ describe('reference lookup caching', () => {
     expect(cached).toEqual(cachedLookup);
   });
 
-  it('cacheReferenceLookup persists the new lookup alongside any existing ones', async () => {
+  it('cacheReferenceLookup persists the new lookup alongside any existing ones, keeping referenceLookups a plain object', async () => {
     await conferenceCaseService.cacheReferenceLookup({
       caseId: 'case1',
-      existingLookups: { 'Other topic': { query: 'q', results: [], cachedAt: 'x' } },
+      existingLookups: { 'Other topic': { topic: 'Other topic', query: 'q', results: [], cachedAt: 'x' } },
       topic: 'Valve choice',
       query: 'valve choice[tiab]',
       results: [{ pmid: '111' }],
@@ -397,13 +397,40 @@ describe('reference lookup caching', () => {
 
     expect(conferenceCaseRepository.update).toHaveBeenCalledWith('case1', {
       referenceLookups: expect.objectContaining({
-        'Other topic': { query: 'q', results: [], cachedAt: 'x' },
+        'Other topic': { topic: 'Other topic', query: 'q', results: [], cachedAt: 'x' },
         'Valve choice': expect.objectContaining({
+          topic: 'Valve choice',
           query: 'valve choice[tiab]',
           results: [{ pmid: '111' }],
         }),
       }),
     });
+    // referenceLookups is a schema-locked Object column on CSCConferenceCase -- an
+    // array would fail the save with a schema-mismatch error in production.
+    const [, patch] = conferenceCaseRepository.update.mock.calls[0];
+    expect(Array.isArray(patch.referenceLookups)).toBe(false);
+  });
+
+  it('sanitizes a "." in the topic so a Mongo/Parse Object-field key stays valid, while preserving the real topic text in the cached entry and on lookup', async () => {
+    const topic = 'Comparison of TAVR vs. SAVR in low-risk patients';
+
+    await conferenceCaseService.cacheReferenceLookup({
+      caseId: 'case1',
+      existingLookups: {},
+      topic,
+      query: 'tavr vs savr[tiab]',
+      results: [{ pmid: '222' }],
+    });
+
+    const [, patch] = conferenceCaseRepository.update.mock.calls[0];
+    const keys = Object.keys(patch.referenceLookups);
+    expect(keys).toHaveLength(1);
+    expect(keys[0]).not.toContain('.');
+    expect(patch.referenceLookups[keys[0]]).toEqual(expect.objectContaining({ topic }));
+
+    conferenceCaseRepository.getById.mockResolvedValue(baseCaseState({ referenceLookups: patch.referenceLookups }));
+    const { cached } = await conferenceCaseService.getCachedReferenceLookup({ caseId: 'case1', ownerId: 'user1', topic });
+    expect(cached).toEqual(expect.objectContaining({ topic, query: 'tavr vs savr[tiab]' }));
   });
 });
 

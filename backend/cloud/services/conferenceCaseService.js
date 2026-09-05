@@ -432,6 +432,26 @@ async function listCases({ ownerId }) {
 }
 
 /**
+ * `referenceLookups` is schema-locked on CSCConferenceCase as an Object
+ * column (set by its very first save), so it must stay a plain object
+ * keyed by topic rather than an array -- Parse/Mongo enforce that column
+ * type per-field and reject a mismatched shape outright ("schema mismatch
+ * ... expected Object but got Array").
+ *
+ * The raw topic text can't be used as that key directly, though: a nested
+ * Mongo subdocument key can't contain "." (e.g. "TAVR vs. SAVR"), and the
+ * save fails with an opaque error that surfaced to the client as a
+ * generic "Couldn't search PubMed" failure even though PubMed itself had
+ * already returned results successfully. Swap "." and "$" for lookalike
+ * characters that are safe as object keys -- the real topic text is kept
+ * inside the cached entry, so nothing about the cache's meaning changes,
+ * only what's usable as its key.
+ */
+function referenceLookupKey(topic) {
+  return topic.replace(/\./g, '․').replace(/\$/g, '＄');
+}
+
+/**
  * Returns a previously-cached PubMed lookup for a reference topic, or
  * null if this topic hasn't been searched for this case before. Mirrors
  * MMCoach's per-case reference-lookup cache so repeat lookups of the same
@@ -439,14 +459,14 @@ async function listCases({ ownerId }) {
  */
 async function getCachedReferenceLookup({ caseId, ownerId, topic }) {
   const caseState = await getOwnedCase(caseId, ownerId);
-  const cached = caseState.referenceLookups && caseState.referenceLookups[topic];
+  const cached = caseState.referenceLookups && caseState.referenceLookups[referenceLookupKey(topic)];
   return { caseState, cached: cached || null };
 }
 
 async function cacheReferenceLookup({ caseId, existingLookups, topic, query, results }) {
   const referenceLookups = {
     ...(existingLookups || {}),
-    [topic]: { query, results, cachedAt: new Date().toISOString() },
+    [referenceLookupKey(topic)]: { topic, query, results, cachedAt: new Date().toISOString() },
   };
   await conferenceCaseRepository.update(caseId, { referenceLookups });
 }
