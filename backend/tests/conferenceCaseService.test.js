@@ -179,6 +179,74 @@ describe('answerQuestion', () => {
   });
 });
 
+describe('skipRemainingQuestions', () => {
+  it('throws NotFoundError for an unknown case id', async () => {
+    conferenceCaseRepository.getById.mockResolvedValue(null);
+
+    await expect(
+      conferenceCaseService.skipRemainingQuestions({ caseId: 'missing', ownerId: 'user1' })
+    ).rejects.toThrow(NotFoundError);
+  });
+
+  it('throws NotFoundError (not a permission error) when the case belongs to a different user', async () => {
+    conferenceCaseRepository.getById.mockResolvedValue(baseCaseState({ ownerId: 'someone-else' }));
+
+    await expect(
+      conferenceCaseService.skipRemainingQuestions({ caseId: 'case1', ownerId: 'user1' })
+    ).rejects.toThrow(NotFoundError);
+  });
+
+  it('throws InvalidStateError when the case has no open question', async () => {
+    conferenceCaseRepository.getById.mockResolvedValue(baseCaseState({ status: ConferenceCaseStatus.READY_TO_FINALIZE, currentQuestion: null }));
+
+    await expect(
+      conferenceCaseService.skipRemainingQuestions({ caseId: 'case1', ownerId: 'user1' })
+    ).rejects.toThrow(InvalidStateError);
+  });
+
+  it('throws InvalidStateError when the case is still collecting but has no active question somehow', async () => {
+    conferenceCaseRepository.getById.mockResolvedValue(baseCaseState({ status: ConferenceCaseStatus.COLLECTING_INFORMATION, currentQuestion: null }));
+
+    await expect(
+      conferenceCaseService.skipRemainingQuestions({ caseId: 'case1', ownerId: 'user1' })
+    ).rejects.toThrow(InvalidStateError);
+  });
+
+  it('moves the case straight to ready_to_finalize without calling the question generator or the answer analyzer', async () => {
+    const current = baseCaseState({
+      currentQuestion: { questionId: 'q1', question: 'Any prior sternotomy?', category: 'prior history', reason: 'r', answer: null, askedAt: 'x', answeredAt: null },
+    });
+    conferenceCaseRepository.getById.mockResolvedValue(current);
+    conferenceCaseRepository.update.mockImplementation(async (id, patch) => ({ ...current, ...patch }));
+
+    const result = await conferenceCaseService.skipRemainingQuestions({ caseId: 'case1', ownerId: 'user1' });
+
+    expect(conferenceQuestionGenerator.generateNextQuestion).not.toHaveBeenCalled();
+    expect(conferenceCaseAnalyzer.incorporateAnswer).not.toHaveBeenCalled();
+    expect(result.status).toBe(ConferenceCaseStatus.READY_TO_FINALIZE);
+    expect(result.currentQuestion).toBeNull();
+  });
+
+  it('records the declined question in conversation so downstream prompts see what was left unanswered', async () => {
+    const current = baseCaseState({
+      currentQuestion: { questionId: 'q1', question: 'Any prior sternotomy?', category: 'prior history', reason: 'r', answer: null, askedAt: 'x', answeredAt: null },
+    });
+    conferenceCaseRepository.getById.mockResolvedValue(current);
+    conferenceCaseRepository.update.mockImplementation(async (id, patch) => ({ ...current, ...patch }));
+
+    const result = await conferenceCaseService.skipRemainingQuestions({ caseId: 'case1', ownerId: 'user1' });
+
+    expect(result.conversation).toHaveLength(1);
+    expect(result.conversation[0]).toEqual(
+      expect.objectContaining({
+        questionId: 'q1',
+        question: 'Any prior sternotomy?',
+        answer: expect.stringContaining('chose to stop answering'),
+      })
+    );
+  });
+});
+
 describe('finalizeCase', () => {
   it('throws InvalidStateError when the case still has an open question', async () => {
     conferenceCaseRepository.getById.mockResolvedValue(baseCaseState({ status: ConferenceCaseStatus.COLLECTING_INFORMATION }));
@@ -204,8 +272,10 @@ describe('finalizeCase', () => {
     await expect(conferenceCaseService.finalizeCase({ caseId: 'case1', ownerId: 'user1' })).rejects.toThrow(NotFoundError);
   });
 
-  it('generates and persists the finalized nine-section report', async () => {
-    const current = baseCaseState({ status: ConferenceCaseStatus.READY_TO_FINALIZE });
+  it('generates and persists the finalized ten-section report', async () => {
+    const heartTeamResponses = { surgeon: { recommendation: 'Proceed with SAVR.', rationale: 'Durability favors surgery.' } };
+    const heartTeamEvidence = { surgeon: { pro: { results: [] }, con: { results: [] } } };
+    const current = baseCaseState({ status: ConferenceCaseStatus.READY_TO_FINALIZE, heartTeamResponses, heartTeamEvidence });
     conferenceCaseRepository.getById.mockResolvedValue(current);
     conferenceFinalizer.finalizeCase.mockResolvedValue({
       diagnosis: 'Severe aortic stenosis.',
@@ -216,6 +286,7 @@ describe('finalizeCase', () => {
       controversies: 'Valve choice given age.',
       technicalConsiderations: 'Calcified annulus.',
       postoperativeConcerns: 'Watch for heart block.',
+      preponderanceOfEvidence: 'Evidence favors surgical durability for this patient.',
       evidenceGuidelines: [{ topic: 't', searchIntent: 's', citation: null, verified: false }],
       meta: { model: 'gpt-test' },
       promptVersion: '1.0.0',
@@ -224,9 +295,44 @@ describe('finalizeCase', () => {
 
     const result = await conferenceCaseService.finalizeCase({ caseId: 'case1', ownerId: 'user1' });
 
+    expect(conferenceFinalizer.finalizeCase).toHaveBeenCalledWith(
+      expect.objectContaining({ heartTeamResponses, heartTeamEvidence })
+    );
     expect(result.status).toBe(ConferenceCaseStatus.COMPLETED);
     expect(result.report.diagnosis).toBe('Severe aortic stenosis.');
+    expect(result.report.preponderanceOfEvidence).toBe('Evidence favors surgical durability for this patient.');
+    expect(result.report.evidenceReviewedRoles).toEqual(['surgeon']);
     expect(result.report.evidenceGuidelines).toHaveLength(1);
+  });
+
+  it('lists only the roles whose evidence was actually reviewed, not just responded', async () => {
+    const heartTeamResponses = {
+      surgeon: { recommendation: 'Proceed with SAVR.', rationale: 'Durability.' },
+      nonInterventionalCardiologist: { recommendation: 'Optimize medical therapy first.', rationale: 'Risk stratification.' },
+      interventionalCardiologist: { recommendation: 'Consider TAVR.', rationale: 'Less invasive.' },
+    };
+    // Evidence reviewed for surgeon and interventionalCardiologist, but not
+    // nonInterventionalCardiologist -- confirms the computed list reflects
+    // heartTeamEvidence, not just which roles have a response.
+    const heartTeamEvidence = {
+      surgeon: { pro: { results: [] }, con: { results: [] } },
+      interventionalCardiologist: { pro: { results: [] }, con: { results: [] } },
+    };
+    const current = baseCaseState({ status: ConferenceCaseStatus.READY_TO_FINALIZE, heartTeamResponses, heartTeamEvidence });
+    conferenceCaseRepository.getById.mockResolvedValue(current);
+    conferenceFinalizer.finalizeCase.mockResolvedValue({
+      diagnosis: 'd', indication: 'i', missingInformation: 'm', operativeStrategy: 'o',
+      alternatives: 'a', controversies: 'c', technicalConsiderations: 't', postoperativeConcerns: 'p',
+      preponderanceOfEvidence: 'Mixed evidence across roles.',
+      evidenceGuidelines: [],
+      meta: { model: 'gpt-test' },
+      promptVersion: '1.0.0',
+    });
+    conferenceCaseRepository.update.mockImplementation(async (id, patch) => ({ ...current, ...patch }));
+
+    const result = await conferenceCaseService.finalizeCase({ caseId: 'case1', ownerId: 'user1' });
+
+    expect(result.report.evidenceReviewedRoles).toEqual(['surgeon', 'interventionalCardiologist']);
   });
 });
 
@@ -524,6 +630,49 @@ describe('getRoleEvidence', () => {
     expect(result.pro).toEqual({ query: 'CABG[mesh]', results: [{ pmid: '999', title: 'CABG broadened result' }] });
     expect(result.con).toEqual({ query: 'PCI multivessel[tiab]', results: [{ pmid: '222', title: 'PCI outcomes' }] });
     expect(aiCostRepository.record).toHaveBeenCalledTimes(3);
+  });
+
+  it('drops the recency floor entirely when the recommendation/rationale turns on valve durability', async () => {
+    const durabilityHeartTeamResponses = {
+      surgeon: {
+        recommendation: 'Proceed with SAVR.',
+        rationale: 'Surgical bioprosthetic valves have a 15-20 year durability track record, well beyond TAVR trial follow-up.',
+      },
+    };
+    conferenceCaseRepository.getById.mockResolvedValue(baseCaseState({ heartTeamResponses: durabilityHeartTeamResponses }));
+    referenceQueryBuilder.buildQuery
+      .mockResolvedValueOnce({ query: 'SAVR durability[tiab]', meta: { model: 'gpt-test', usage: { prompt_tokens: 10, completion_tokens: 5 } }, promptVersion: '1.0.0' })
+      .mockResolvedValueOnce({ query: 'TAVR durability[tiab]', meta: { model: 'gpt-test', usage: { prompt_tokens: 10, completion_tokens: 5 } }, promptVersion: '1.0.0' });
+    pubmedService.findReferences
+      .mockResolvedValueOnce([{ pmid: '111', title: 'SAVR 20-year durability' }])
+      .mockResolvedValueOnce([{ pmid: '222', title: 'TAVR 10-year outcomes' }]);
+
+    await conferenceCaseService.getRoleEvidence({ caseId: 'case1', ownerId: 'user1', role: 'surgeon' });
+
+    expect(pubmedService.findReferences).toHaveBeenNthCalledWith(1, { query: 'SAVR durability[tiab]', maxResults: 5, minYear: undefined });
+    expect(pubmedService.findReferences).toHaveBeenNthCalledWith(2, { query: 'TAVR durability[tiab]', maxResults: 5, minYear: undefined });
+  });
+
+  it('describes a zero-result durability search as "the available literature" rather than a NaN-year window', async () => {
+    const durabilityHeartTeamResponses = {
+      surgeon: { recommendation: 'Proceed with SAVR.', rationale: 'Long-term durability favors surgery over TAVR for this younger patient.' },
+    };
+    conferenceCaseRepository.getById.mockResolvedValue(baseCaseState({ heartTeamResponses: durabilityHeartTeamResponses }));
+    referenceQueryBuilder.buildQuery
+      .mockResolvedValueOnce({ query: 'overly[tiab] AND narrow[tiab]', meta: { model: 'gpt-test', usage: { prompt_tokens: 10, completion_tokens: 5 } }, promptVersion: '1.0.0' })
+      .mockResolvedValueOnce({ query: 'TAVR durability[tiab]', meta: { model: 'gpt-test', usage: { prompt_tokens: 10, completion_tokens: 5 } }, promptVersion: '1.0.0' })
+      .mockResolvedValueOnce({ query: 'SAVR[mesh]', meta: { model: 'gpt-test', usage: { prompt_tokens: 12, completion_tokens: 6 } }, promptVersion: '1.0.0' });
+    pubmedService.findReferences
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ pmid: '222', title: 'TAVR outcomes' }])
+      .mockResolvedValueOnce([{ pmid: '999', title: 'SAVR broadened result' }]);
+
+    await conferenceCaseService.getRoleEvidence({ caseId: 'case1', ownerId: 'user1', role: 'surgeon' });
+
+    expect(referenceQueryBuilder.buildQuery).toHaveBeenNthCalledWith(3, {
+      topic: expect.any(String),
+      searchIntent: expect.stringContaining('returned zero results in the available literature'),
+    });
   });
 });
 

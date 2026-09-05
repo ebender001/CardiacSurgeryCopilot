@@ -153,6 +153,10 @@ struct HeartTeamResponsesView: View {
                 .font(.headline)
                 .foregroundStyle(.primary)
 
+            if response.classOfRecommendation != nil || response.levelOfEvidence != nil {
+                gradeBadges(classOfRecommendation: response.classOfRecommendation, levelOfEvidence: response.levelOfEvidence)
+            }
+
             Divider()
 
             Text(response.rationale)
@@ -164,6 +168,33 @@ struct HeartTeamResponsesView: View {
         // a distinct swap rather than the same view silently mutating.
         .id(role)
         .transition(.opacity)
+    }
+
+    /// Either grade can be present without the other (the AI grades them
+    /// independently, and either can fail validation on its own -- see
+    /// heartTeamResponseSchema.js), so each badge is shown only if its own
+    /// value exists rather than requiring both.
+    private func gradeBadges(classOfRecommendation: ClassOfRecommendation?, levelOfEvidence: LevelOfEvidence?) -> some View {
+        HStack(spacing: 6) {
+            if let classOfRecommendation {
+                gradeBadge(text: classOfRecommendation.badgeText, color: classOfRecommendation.color)
+            }
+            if let levelOfEvidence {
+                gradeBadge(text: levelOfEvidence.badgeText, color: levelOfEvidence.color)
+            }
+        }
+    }
+
+    private func gradeBadge(text: String, color: Color) -> some View {
+        Text(text)
+            .font(.caption2.weight(.bold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(color)
+            )
     }
 
     /// Keyed to the currently selected role, same as the card above --
@@ -207,15 +238,21 @@ extension HeartTeamResponses {
         caseId: "abc123",
         surgeon: HeartTeamResponse(
             recommendation: "Proceed with CABG x3.",
-            rationale: "Three-vessel disease with a reduced ejection fraction of 35% is a class I surgical indication -- this is exactly the population where CABG has shown a mortality benefit over PCI in the major trials. The RCA is a chronic total occlusion, which is durably bypassable but a poor long-term PCI target even in experienced hands. Given his Jehovah's Witness status, I'd want a bloodless-surgery protocol confirmed preoperatively -- cell salvage, minimizing hemodilution, and a low threshold for iron/EPO optimization -- but that doesn't change the indication."
+            rationale: "Three-vessel disease with a reduced ejection fraction of 35% is a class I surgical indication -- this is exactly the population where CABG has shown a mortality benefit over PCI in the major trials. The RCA is a chronic total occlusion, which is durably bypassable but a poor long-term PCI target even in experienced hands. Given his Jehovah's Witness status, I'd want a bloodless-surgery protocol confirmed preoperatively -- cell salvage, minimizing hemodilution, and a low threshold for iron/EPO optimization -- but that doesn't change the indication.",
+            classOfRecommendation: .i,
+            levelOfEvidence: .bRandomized
         ),
         nonInterventionalCardiologist: HeartTeamResponse(
             recommendation: "Optimize medically and confirm viability before committing to a strategy.",
-            rationale: "Before we lock in a revascularization strategy, I want to know how much of that reduced EF is ischemic versus something else contributing -- viability imaging would change my recommendation meaningfully. He's asymptomatic on heparin and nitroglycerin right now, which buys us time to do this properly rather than rushing to the OR or the cath lab. I'd also want his transfusion-avoidance plan worked out with anesthesia and blood bank before we're committed to a bleeding-risk procedure, surgical or not."
+            rationale: "Before we lock in a revascularization strategy, I want to know how much of that reduced EF is ischemic versus something else contributing -- viability imaging would change my recommendation meaningfully. He's asymptomatic on heparin and nitroglycerin right now, which buys us time to do this properly rather than rushing to the OR or the cath lab. I'd also want his transfusion-avoidance plan worked out with anesthesia and blood bank before we're committed to a bleeding-risk procedure, surgical or not.",
+            classOfRecommendation: .iia,
+            levelOfEvidence: .cExpertOpinion
         ),
         interventionalCardiologist: HeartTeamResponse(
             recommendation: "Staged multivessel PCI, starting with the LAD.",
-            rationale: "I'd start with the proximal LAD given it's the dominant ischemic territory, then stage the OM1, and take on the RCA CTO last once we've confirmed adequate collateral flow isn't masking a bailout need. Yes, this is a CTO with two other significant lesions, but CTO-PCI success rates at an experienced center are well over 85% now, and avoiding a sternotomy in a Jehovah's Witness patient with this bleeding-risk profile is a real advantage, not just a convenience. I'd rather manage staged procedural risk than a single large intraoperative one."
+            rationale: "I'd start with the proximal LAD given it's the dominant ischemic territory, then stage the OM1, and take on the RCA CTO last once we've confirmed adequate collateral flow isn't masking a bailout need. Yes, this is a CTO with two other significant lesions, but CTO-PCI success rates at an experienced center are well over 85% now, and avoiding a sternotomy in a Jehovah's Witness patient with this bleeding-risk profile is a real advantage, not just a convenience. I'd rather manage staged procedural risk than a single large intraoperative one.",
+            classOfRecommendation: .iib,
+            levelOfEvidence: .bNonrandomized
         )
     )
 }

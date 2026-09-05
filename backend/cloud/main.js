@@ -7,6 +7,7 @@
 // Preoperative Case Conference workflow
 require('./functions/createConferenceCase');
 require('./functions/answerConferenceQuestion');
+require('./functions/skipRemainingConferenceQuestions');
 require('./functions/finalizeConferenceCase');
 require('./functions/getConferenceCase');
 require('./functions/listConferenceCases');

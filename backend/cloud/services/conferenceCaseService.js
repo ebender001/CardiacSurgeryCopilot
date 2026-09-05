@@ -1,7 +1,7 @@
 /**
  * Coordinates the Preoperative Case Conference workflow: creating cases,
  * incorporating answers, deciding when to stop asking questions, and
- * finalizing the nine-section report. This is the module Cloud Functions
+ * finalizing the ten-section report. This is the module Cloud Functions
  * call into -- it delegates extraction/question-generation/finalization to
  * ai/*, and persistence to conferenceCaseRepository.
  */
@@ -23,6 +23,30 @@ const logger = require('../utils/logger');
 const CASE_TYPE = 'conference';
 const EVIDENCE_MAX_RESULTS = 5;
 const EVIDENCE_MAX_AGE_YEARS = 10;
+
+/**
+ * Durability/reintervention language in a role's recommendation or
+ * rationale (see persona.js's guidance on flagging follow-up-duration
+ * mismatches, e.g. TAVR vs. SAVR) signals that the evidence which
+ * actually matters here is long-term valve/structural durability data --
+ * which is frequently older than `EVIDENCE_MAX_AGE_YEARS` precisely
+ * because it takes that long to accumulate. See `getRoleEvidence`, which
+ * drops the recency floor entirely for a role whose opinion turns on
+ * this, rather than either applying that floor everywhere (most evidence
+ * searches genuinely do benefit from staying recent) or nowhere
+ * (durability studies would otherwise be systematically excluded).
+ */
+const DURABILITY_EVIDENCE_KEYWORDS = [
+  'durability', 'durable', 'structural valve deterioration', 'svd',
+  'reintervention', 're-intervention', 'redo surgery', 'redo operation',
+  'valve-in-valve', 'valve in valve', 'explant', 'long-term', 'longevity',
+  'lifetime', 'life expectancy', 'year follow-up', 'years of follow-up',
+];
+
+function needsDurabilityEvidence(text) {
+  const lower = text.toLowerCase();
+  return DURABILITY_EVIDENCE_KEYWORDS.some((keyword) => lower.includes(keyword));
+}
 
 /**
  * Plain-language role labels used only to phrase the pro/con PubMed-
@@ -203,6 +227,52 @@ async function answerQuestion({ caseId, questionId, answer, ownerId }) {
   return applyQuestionOutcome(updated, ownerId);
 }
 
+/**
+ * Lets the trainee deliberately stop the follow-up-question loop early
+ * rather than answer every question the AI would otherwise ask --
+ * transitions straight to `ready_to_finalize` without another
+ * generateNextQuestion call, overriding the AI's own judgment about
+ * whether enough is known yet. No AI call is needed for this action
+ * itself (it's a pure state transition), unlike answerQuestion.
+ *
+ * The currently-pending question is recorded in the conversation as
+ * explicitly declined -- with its own category/reason intact -- rather
+ * than simply discarded, so every downstream AI call (finalizeCase,
+ * heart-team responses) sees exactly what was left unknown and that it
+ * was a deliberate trainee choice, not an oversight, the same way it
+ * already sees every answered question (see qaSummary formatting in
+ * finalizeConferencePrompt.js / heartTeamResponsesPrompt.js) -- so
+ * "missingInformation" and each role's reasoning can account for it
+ * without needing a separate signal threaded through every prompt.
+ */
+async function skipRemainingQuestions({ caseId, ownerId }) {
+  const caseState = await getOwnedCase(caseId, ownerId);
+  if (caseState.status !== ConferenceCaseStatus.COLLECTING_INFORMATION || !caseState.currentQuestion) {
+    throw new InvalidStateError('This case is not currently awaiting an answer.');
+  }
+
+  const declinedEntry = {
+    ...caseState.currentQuestion,
+    answer: 'The trainee chose to stop answering follow-up questions at this point and proceed with the information gathered so far.',
+    answeredAt: new Date().toISOString(),
+  };
+  const conversation = [...caseState.conversation, declinedEntry];
+
+  const updated = await conferenceCaseRepository.update(caseId, {
+    conversation,
+    currentQuestion: null,
+    status: ConferenceCaseStatus.READY_TO_FINALIZE,
+  });
+
+  logger.info({
+    module: 'conferenceCaseService',
+    caseId: updated.objectId,
+    operation: 'skipRemainingQuestions',
+    status: updated.status,
+  });
+  return updated;
+}
+
 async function finalizeCase({ caseId, ownerId }) {
   const caseState = await getOwnedCase(caseId, ownerId);
   if (caseState.status === ConferenceCaseStatus.COLLECTING_INFORMATION) {
@@ -216,6 +286,8 @@ async function finalizeCase({ caseId, ownerId }) {
     extractedCase: caseState.extractedCase,
     conversation: caseState.conversation,
     originalNarrative: caseState.originalNarrative,
+    heartTeamResponses: caseState.heartTeamResponses,
+    heartTeamEvidence: caseState.heartTeamEvidence,
     caseId,
   });
   await recordAIUsage({ caseId, ownerId, operation: 'finalizeConferenceCase', meta: result.meta });
@@ -229,6 +301,16 @@ async function finalizeCase({ caseId, ownerId }) {
     controversies: result.controversies,
     technicalConsiderations: result.technicalConsiderations,
     postoperativeConcerns: result.postoperativeConcerns,
+    preponderanceOfEvidence: result.preponderanceOfEvidence,
+    // Computed deterministically here, not left to the AI to self-report --
+    // lets the client nudge the trainee toward reviewing evidence for
+    // whichever roles are missing, without trusting free text to encode
+    // that state reliably. A snapshot as of finalize time, same as
+    // preponderanceOfEvidence itself: reviewing more evidence afterward
+    // doesn't retroactively update either without re-finalizing.
+    evidenceReviewedRoles: Object.keys(caseState.heartTeamResponses || {}).filter(
+      (role) => caseState.heartTeamEvidence && caseState.heartTeamEvidence[role]
+    ),
     evidenceGuidelines: result.evidenceGuidelines,
   };
 
@@ -311,8 +393,9 @@ async function getHeartTeamResponses({ caseId, ownerId }) {
  * recognized word in an unquoted query, so a sentence full of generic
  * framing language ("Evidence supporting this recommendation from...")
  * reliably returns zero regardless of the actual clinical content.
- * `minYear` is applied to both attempts -- the evidence feature's 10-year
- * window is never relaxed as part of broadening.
+ * `minYear` (which may already be `undefined` -- see `getRoleEvidence`'s
+ * durability handling) is applied identically to both attempts; broadening
+ * never itself changes the recency floor.
  */
 async function findEvidenceWithFallback({ topic, searchIntent, primaryQuery, maxResults, minYear, caseId, ownerId, operation }) {
   const results = await pubmedService.findReferences({ query: primaryQuery, maxResults, minYear });
@@ -320,10 +403,12 @@ async function findEvidenceWithFallback({ topic, searchIntent, primaryQuery, max
     return { query: primaryQuery, results };
   }
 
-  const yearsBack = new Date().getFullYear() - minYear;
+  const resultWindowDescription = minYear
+    ? `in the last ${new Date().getFullYear() - minYear} years`
+    : 'in the available literature';
   const broadened = await referenceQueryBuilder.buildQuery({
     topic,
-    searchIntent: `${searchIntent}\n\nThe query "${primaryQuery}" returned zero results in the last ${yearsBack} years. Write a broader query this time -- at most two ANDed concepts: the core intervention/condition, plus a comparator only if essential. Drop every incidental patient-specific detail (an exact lab value, a specific percentage, a demographic or social circumstance) entirely rather than including it as a concept, even if that means the query is more general than the topic above.`,
+    searchIntent: `${searchIntent}\n\nThe query "${primaryQuery}" returned zero results ${resultWindowDescription}. Write a broader query this time -- at most two ANDed concepts: the core intervention/condition, plus a comparator only if essential. Drop every incidental patient-specific detail (an exact lab value, a specific percentage, a demographic or social circumstance) entirely rather than including it as a concept, even if that means the query is more general than the topic above.`,
   });
   await recordAIUsage({ caseId, ownerId, operation, meta: broadened.meta });
 
@@ -341,8 +426,12 @@ async function findEvidenceWithFallback({ topic, searchIntent, primaryQuery, max
  * revisiting a role's evidence never repeats the AI query-building calls
  * or the PubMed round trips. Results are restricted to publications from
  * the last `EVIDENCE_MAX_AGE_YEARS` years (see pubmedService's `minYear`)
- * -- never older, and never fabricated if fewer than `EVIDENCE_MAX_RESULTS`
- * turn up within that window.
+ * -- never fabricated if fewer than `EVIDENCE_MAX_RESULTS` turn up within
+ * that window -- UNLESS this role's recommendation/rationale turns on
+ * durability or reintervention (see `needsDurabilityEvidence`), in which
+ * case the recency floor is dropped entirely so long-term valve-durability
+ * literature older than that window isn't excluded from exactly the
+ * search where it matters most.
  */
 async function getRoleEvidence({ caseId, ownerId, role }) {
   if (!HEART_TEAM_ROLES.includes(role)) {
@@ -359,7 +448,9 @@ async function getRoleEvidence({ caseId, ownerId, role }) {
 
   const { recommendation, rationale } = caseState.heartTeamResponses[role];
   const roleLabel = EVIDENCE_ROLE_LABELS[role];
-  const minYear = new Date().getFullYear() - EVIDENCE_MAX_AGE_YEARS;
+  const minYear = needsDurabilityEvidence(`${recommendation}\n${rationale}`)
+    ? undefined
+    : new Date().getFullYear() - EVIDENCE_MAX_AGE_YEARS;
   const proTopic = `Evidence supporting this recommendation from ${roleLabel}: ${recommendation}`;
   const conTopic = `Evidence favoring an alternative to this recommendation from ${roleLabel}: ${recommendation}`;
 
@@ -511,6 +602,7 @@ function formatFullCase(caseState) {
 module.exports = {
   createCase,
   answerQuestion,
+  skipRemainingQuestions,
   finalizeCase,
   getCase,
   updateReport,

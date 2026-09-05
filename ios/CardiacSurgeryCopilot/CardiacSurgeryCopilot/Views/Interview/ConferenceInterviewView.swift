@@ -17,6 +17,7 @@ import SwiftUI
 struct ConferenceInterviewView: View {
     @StateObject private var viewModel: ConferenceInterviewViewModel
     @Binding var path: [ConferenceRoute]
+    @State private var isConfirmingSkip = false
 
     init(caseId: String, initialCase: ConferenceCase?, path: Binding<[ConferenceRoute]>, viewModel: ConferenceInterviewViewModel? = nil) {
         _path = path
@@ -103,6 +104,8 @@ struct ConferenceInterviewView: View {
                 }
                 .buttonStyle(.copilotProminent)
                 .disabled(!viewModel.canSubmitAnswer)
+
+                skipButton
             }
             .padding(.horizontal, 20)
             .padding(.top, 12)
@@ -123,6 +126,43 @@ struct ConferenceInterviewView: View {
         } message: { message in
             Text(message)
         }
+        .confirmationDialog(
+            "Stop Answering Questions?",
+            isPresented: $isConfirmingSkip,
+            titleVisibility: .visible
+        ) {
+            Button("Stop and Continue", role: .destructive) {
+                Task {
+                    await viewModel.skipRemainingQuestions()
+                    navigateIfReady()
+                }
+            }
+            Button("Keep Answering", role: .cancel) {}
+        } message: {
+            Text("The heart team's analysis may be less reliable without the information this and any other unanswered questions were asking for. You can still finalize the case, but some sections may rely on assumptions rather than confirmed details.")
+        }
+    }
+
+    /// A deliberately lower-emphasis affordance than "Submit Answer" --
+    /// always reachable at every question, but never competing with it,
+    /// since answering is still the expected path and this is an
+    /// escape hatch, not an equally-weighted alternative.
+    private var skipButton: some View {
+        Button {
+            isConfirmingSkip = true
+        } label: {
+            if viewModel.isSkippingRemainingQuestions {
+                ProgressView()
+            } else {
+                Text("Stop Asking Questions")
+                    .font(.footnote.weight(.medium))
+            }
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(Color.slateText)
+        .frame(maxWidth: .infinity)
+        .padding(.top, 4)
+        .disabled(viewModel.isSubmittingAnswer || viewModel.isSkippingRemainingQuestions)
     }
 
     private var dictationErrorBinding: Binding<Bool> {

@@ -98,6 +98,18 @@ enum BackendService {
         try await run(AnswerConferenceQuestionFunction(caseId: caseId, questionId: questionId, answer: answer))
     }
 
+    /// Lets the trainee stop the follow-up-question loop early instead of
+    /// answering every question the AI would otherwise ask, moving the
+    /// case straight to `ready_to_finalize`. The currently-pending
+    /// question is recorded as explicitly declined (not just discarded)
+    /// so the eventual report/heart-team responses can account for what
+    /// was left unknown. The client is responsible for warning the
+    /// trainee that the analysis may be less reliable without it before
+    /// calling this -- see ConferenceInterviewView's confirmation alert.
+    static func skipRemainingConferenceQuestions(caseId: String) async throws -> ConferenceCase {
+        try await run(SkipRemainingConferenceQuestionsFunction(caseId: caseId))
+    }
+
     /// Generates and persists the nine-section report, moving the case to
     /// `completed`. Only valid once the case needs no more follow-up
     /// questions -- the backend rejects this while `status ==
@@ -201,6 +213,12 @@ private struct AnswerConferenceQuestionFunction: ParseCloudable {
     var caseId: String
     var questionId: String
     var answer: String
+}
+
+private struct SkipRemainingConferenceQuestionsFunction: ParseCloudable {
+    typealias ReturnType = ConferenceCase
+    var functionJobName = "cscSkipRemainingConferenceQuestions"
+    var caseId: String
 }
 
 private struct FinalizeConferenceCaseFunction: ParseCloudable {

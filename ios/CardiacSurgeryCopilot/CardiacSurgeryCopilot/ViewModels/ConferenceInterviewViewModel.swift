@@ -24,6 +24,7 @@ final class ConferenceInterviewViewModel: ObservableObject {
     }
     @Published private(set) var isLoadingCase: Bool
     @Published private(set) var isSubmittingAnswer = false
+    @Published private(set) var isSkippingRemainingQuestions = false
     @Published var errorMessage: String?
     @Published private(set) var spellingSuggestions: [String] = []
     /// Mirrors `dictation.dictationPhase`/`dictationErrorMessage`/
@@ -70,7 +71,7 @@ final class ConferenceInterviewViewModel: ObservableObject {
     }
 
     var canSubmitAnswer: Bool {
-        dictationPhase == .idle && !isSubmittingAnswer
+        dictationPhase == .idle && !isSubmittingAnswer && !isSkippingRemainingQuestions
             && !answerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
@@ -117,6 +118,25 @@ final class ConferenceInterviewViewModel: ObservableObject {
             answerText = ""
         } catch {
             // Preserve answerText so the trainee doesn't lose what they typed.
+            errorMessage = Self.message(for: error)
+        }
+    }
+
+    /// Stops the follow-up-question loop early -- the view is responsible
+    /// for warning the trainee that the case analysis may be less
+    /// reliable without the skipped information (see
+    /// ConferenceInterviewView's confirmation alert) before calling this;
+    /// this method itself just performs the action once confirmed.
+    func skipRemainingQuestions() async {
+        guard currentQuestion != nil else { return }
+        errorMessage = nil
+        isSkippingRemainingQuestions = true
+        defer { isSkippingRemainingQuestions = false }
+
+        do {
+            let result = try await BackendService.skipRemainingConferenceQuestions(caseId: caseId)
+            apply(result)
+        } catch {
             errorMessage = Self.message(for: error)
         }
     }

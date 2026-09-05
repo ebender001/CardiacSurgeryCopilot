@@ -89,6 +89,7 @@ function validateFinalizeConferenceCaseResponse(data) {
     controversies: normalizeSection(data.controversies, 'controversies'),
     technicalConsiderations: normalizeSection(data.technicalConsiderations, 'technicalConsiderations'),
     postoperativeConcerns: normalizeSection(data.postoperativeConcerns, 'postoperativeConcerns'),
+    preponderanceOfEvidence: normalizeSection(data.preponderanceOfEvidence, 'preponderanceOfEvidence'),
   };
 
   const referenceTopics = Array.isArray(data.referenceTopics)
