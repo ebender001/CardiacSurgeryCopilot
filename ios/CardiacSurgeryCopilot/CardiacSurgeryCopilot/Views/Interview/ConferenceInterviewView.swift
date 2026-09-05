@@ -139,14 +139,27 @@ struct ConferenceInterviewView: View {
         .polishedCard()
     }
 
-    /// Pushes straight to the heart team responses once there's no pending
+    /// Moves on to the heart team responses once there's no pending
     /// question and the case isn't still loading -- covers both a
     /// just-answered last question and a resumed case that was already
     /// `ready_to_finalize`. A no-op while a question is still pending or
     /// still loading.
+    ///
+    /// Replaces this view's own entry in `path` rather than pushing on top
+    /// of it -- this same view instance handles every question in the
+    /// loop in place (see the type doc above), so once it's done it has
+    /// nothing left to show. Pushing on top of it would leave it sitting
+    /// in the stack as a dead end: popping back from Heart Team Responses
+    /// would land on this now-empty "Follow-Up Question" screen instead of
+    /// wherever the interview was actually reached from.
     private func navigateIfReady() {
         guard !viewModel.isLoadingCase, viewModel.currentQuestion == nil, viewModel.errorMessage == nil else { return }
-        path.append(.heartTeamResponses(caseId: viewModel.caseId))
+        let next = ConferenceRoute.heartTeamResponses(caseId: viewModel.caseId)
+        if path.isEmpty {
+            path.append(next)
+        } else {
+            path[path.count - 1] = next
+        }
     }
 }
 
