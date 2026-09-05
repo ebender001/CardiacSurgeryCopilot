@@ -2,11 +2,7 @@
 //  ConferenceIntakeViewModel.swift
 //  CardiacSurgeryCopilot
 //
-//  Drives ConferenceIntakeView. No dictation/PHI screening yet (see
-//  MMCoach's NewCaseViewModel for that pattern -- DictationController,
-//  MedicalDictionaryService, PHIFilterService -- none of which are ported
-//  into this app yet); this is a typed-text-only MVP so the create-case
-//  round trip can be built and tested before that infra exists.
+//  Drives ConferenceIntakeView.
 //
 
 import Combine
@@ -14,22 +10,61 @@ import Foundation
 
 @MainActor
 final class ConferenceIntakeViewModel: ObservableObject {
-    @Published var narrativeText: String
+    @Published var narrativeText: String {
+        didSet {
+            spellingSuggestions = medicalDictionary.possibleMisspellings(in: narrativeText)
+        }
+    }
     @Published private(set) var isSubmitting = false
     @Published var errorMessage: String?
+    @Published private(set) var spellingSuggestions: [String] = []
+    /// Mirrors `dictation.dictationPhase`/`dictationErrorMessage`/
+    /// `phiNoticeMessage` so the view only needs to observe this one
+    /// object -- see observeDictation().
+    @Published private(set) var dictationPhase: DictationPhase = .idle
+    @Published var dictationErrorMessage: String?
+    @Published var phiNoticeMessage: String?
+
+    let dictation: DictationController
+
+    private let medicalDictionary: MedicalDictionaryService
+    private let phiFilter: PHIFilterService
+    private var observationTasks: [Task<Void, Never>] = []
 
     private static let minimumNarrativeLength = 20
 
-    init(narrativeText: String = "") {
+    var isDictating: Bool { dictationPhase != .idle }
+
+    init(narrativeText: String = "",
+         dictation: DictationController? = nil,
+         medicalDictionary: MedicalDictionaryService? = nil,
+         phiFilter: PHIFilterService? = nil) {
+        let medicalDictionary = medicalDictionary ?? .shared
         self.narrativeText = narrativeText
+        self.medicalDictionary = medicalDictionary
+        self.phiFilter = phiFilter ?? .shared
+        self.dictation = dictation ?? DictationController(medicalDictionary: medicalDictionary)
+        self.dictation.onCorrectedText = { [weak self] text in
+            self?.narrativeText = text
+        }
+        observeDictation()
     }
 
-    /// Enabled as soon as there's any typed text -- the stricter
+    deinit {
+        observationTasks.forEach { $0.cancel() }
+    }
+
+    /// Enabled as soon as there's any typed/dictated text -- the stricter
     /// `minimumNarrativeLength` check happens on submit, which surfaces a
     /// specific inline message instead of just leaving the button
     /// disabled with no explanation.
     var canContinue: Bool {
-        !isSubmitting && !narrativeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        dictationPhase == .idle && !isSubmitting
+            && !narrativeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    func toggleDictation() async {
+        await dictation.toggleDictation(currentText: narrativeText)
     }
 
     /// Submits the narrative and returns the created case, or nil on
@@ -43,6 +78,19 @@ final class ConferenceIntakeViewModel: ObservableObject {
             return nil
         }
 
+        // Final on-device PHI screen before anything is sent to the
+        // backend (which forwards the narrative to OpenAI) -- catches PHI
+        // typed by hand, which dictation-time screening never saw. If
+        // anything is found, show the trainee the redacted result instead
+        // of silently submitting a rewritten narrative -- they can review
+        // it and tap Continue again.
+        let phiResult = phiFilter.redact(trimmed)
+        if phiResult.hasFindings {
+            narrativeText = phiResult.redactedText
+            phiNoticeMessage = phiResult.noticeMessage
+            return nil
+        }
+
         isSubmitting = true
         defer { isSubmitting = false }
 
@@ -52,5 +100,28 @@ final class ConferenceIntakeViewModel: ObservableObject {
             errorMessage = (error as? LocalizedError)?.errorDescription ?? "Something went wrong. Please try again."
             return nil
         }
+    }
+
+    private func observeDictation() {
+        let phaseTask = Task { [weak self] in
+            guard let self else { return }
+            for await phase in self.dictation.$dictationPhase.values {
+                self.dictationPhase = phase
+            }
+        }
+        let errorTask = Task { [weak self] in
+            guard let self else { return }
+            for await message in self.dictation.$dictationErrorMessage.values {
+                self.dictationErrorMessage = message
+            }
+        }
+        let phiTask = Task { [weak self] in
+            guard let self else { return }
+            for await message in self.dictation.$phiNoticeMessage.values {
+                guard message != nil else { continue }
+                self.phiNoticeMessage = message
+            }
+        }
+        observationTasks = [phaseTask, errorTask, phiTask]
     }
 }

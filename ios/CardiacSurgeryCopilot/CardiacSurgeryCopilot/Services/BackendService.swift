@@ -149,6 +149,16 @@ enum BackendService {
         try await run(GetHeartTeamRoleEvidenceFunction(caseId: caseId, role: role.rawValue))
     }
 
+    /// Corrects one freshly-dictated narrative segment. `priorNarrative` is
+    /// passed only as context for disambiguation -- the backend does not
+    /// re-edit it, and only `correctedSegment` should be appended locally.
+    /// Deliberately does not require an authenticated session (mirrors the
+    /// backend's `cscCorrectDictation`, which isn't gated by `requireUser`)
+    /// -- dictation correction has no per-user data of its own.
+    static func correctDictation(priorNarrative: String, newSegment: String) async throws -> CorrectedDictationSegment {
+        try await run(CorrectDictationFunction(priorNarrative: priorNarrative, newSegment: newSegment))
+    }
+
     /// Permanently deletes the signed-in account and every case/AI-cost
     /// record it owns. Irreversible, and there is no confirmation step on
     /// the backend -- the caller is responsible for confirming with the
@@ -238,6 +248,13 @@ private struct ListConferenceCasesResponse: Decodable {
 private struct ListConferenceCasesFunction: ParseCloudable {
     typealias ReturnType = ListConferenceCasesResponse
     var functionJobName = "cscListConferenceCases"
+}
+
+private struct CorrectDictationFunction: ParseCloudable {
+    typealias ReturnType = CorrectedDictationSegment
+    var functionJobName = "cscCorrectDictation"
+    var priorNarrative: String
+    var newSegment: String
 }
 
 private struct DeleteAccountResponse: Decodable {

@@ -1,0 +1,280 @@
+//
+//  PHIFilterService.swift
+//  CardiacSurgeryCopilot
+//
+//  On-device-only screen for PHI in anything the trainee dictates or types,
+//  applied before that text is allowed to reach ANY network call -- the
+//  dictation-correction, case-creation, and answer-submission Cloud
+//  Functions all forward text to OpenAI, so all of them are in scope, not
+//  just dictation. Nothing in this file makes a network call; it only
+//  reads/rewrites a local string using on-device frameworks (NaturalLanguage,
+//  NSDataDetector) -- see Apple's docs confirming both run fully on-device.
+//
+//  Scope is deliberately narrow, matching what was asked: patient/staff
+//  names, hospital/institution names, procedure dates, and place names.
+//  This is NOT a full HIPAA Safe Harbor de-identification (that also
+//  covers ages >89, exact street addresses, MRNs, phone numbers, etc.) --
+//  trainees still need to follow their institution's case-presentation
+//  norms; this is a safety net that catches obvious slips, not a
+//  substitute for that judgment.
+//
+//  IMPORTANT LIMITATION: this only protects TEXT. It cannot protect audio
+//  already sent to Apple's speech-recognition servers during server-based
+//  dictation (see SpeechRecognitionService) -- by the time a spoken name
+//  reaches this filter as transcribed text, the audio containing it has
+//  already left the device. There is no way to filter audio content before
+//  sending it without defeating the purpose of speech recognition, so the
+//  only way to fully close that gap is to force on-device-only recognition
+//  (which drops contextualStrings support -- see that file's header).
+//
+
+import Foundation
+import NaturalLanguage
+
+struct PHIFinding: Equatable {
+    enum Category: String, CaseIterable {
+        case name
+        case institution
+        case date
+        case location
+
+        var label: String {
+            switch self {
+            case .name: return "a patient or staff name"
+            case .institution: return "a hospital or institution name"
+            case .date: return "a specific date"
+            case .location: return "a geographic location"
+            }
+        }
+
+        fileprivate var placeholder: String {
+            switch self {
+            case .name: return "[name removed]"
+            case .institution: return "[institution removed]"
+            case .date: return "[date removed]"
+            case .location: return "[location removed]"
+            }
+        }
+
+        /// A single combined placeholder for one or more categories
+        /// redacted together -- e.g. two findings close enough that their
+        /// padded audio spans merged into one (see
+        /// AudioRedactionService.TaggedRedactionSpan): "[name removed]"
+        /// for one category, "[name and date removed]" for two, "[name,
+        /// date, and institution removed]" for three, in that fixed
+        /// `allCases` order regardless of which was found first --
+        /// matching PHIFilterResult.noticeMessage's phrasing/joining
+        /// style (kept separate from it since that message never repeats
+        /// the actual redacted text, while a placeholder stands in for it
+        /// inline).
+        static func combinedPlaceholder(for categories: Set<Category>) -> String {
+            let nouns = Category.allCases.filter { categories.contains($0) }.map(\.rawValue)
+            guard !nouns.isEmpty else { return "[removed]" }
+            let joined: String
+            switch nouns.count {
+            case 1: joined = nouns[0]
+            case 2: joined = "\(nouns[0]) and \(nouns[1])"
+            default: joined = nouns.dropLast().joined(separator: ", ") + ", and " + nouns[nouns.count - 1]
+            }
+            return "[\(joined) removed]"
+        }
+    }
+
+    let category: Category
+    let originalText: String
+}
+
+struct PHIFilterResult {
+    let redactedText: String
+    let findings: [PHIFinding]
+
+    var hasFindings: Bool { !findings.isEmpty }
+
+    /// A short, human-readable summary of what was removed, grouped by
+    /// category -- never repeats the actual redacted text back, since that
+    /// would defeat the point of removing it.
+    var noticeMessage: String? {
+        guard !findings.isEmpty else { return nil }
+        let categories = Set(findings.map { $0.category })
+        let labels = PHIFinding.Category.allCases.filter { categories.contains($0) }.map(\.label)
+
+        let joinedLabels: String
+        switch labels.count {
+        case 1: joinedLabels = labels[0]
+        case 2: joinedLabels = "\(labels[0]) and \(labels[1])"
+        default: joinedLabels = labels.dropLast().joined(separator: ", ") + ", and " + labels[labels.count - 1]
+        }
+
+        return "We removed what looked like \(joinedLabels) before sending this. Please describe cases without patient names, staff or institution names, specific dates, or geographic locations."
+    }
+}
+
+@MainActor
+final class PHIFilterService {
+    static let shared = PHIFilterService()
+
+    /// Medical eponyms a generic English name detector can mistake for a
+    /// patient/staff name (e.g. "Whipple procedure", "Crohn's disease") --
+    /// never redacted even when they look like a person's name. Several of
+    /// these (Whipple, Courvoisier, Richter, Barrett) aren't in either
+    /// bundled word list at all, so `medicalDictionary.contains` alone
+    /// wouldn't catch them. Hand-curated and expected to grow.
+    private static let eponymAllowlist: Set<String> = [
+        "whipple", "crohn", "crohn's", "nissen", "zenker", "barrett", "barrett's",
+        "courvoisier", "richter", "meckel", "ladd", "kocher", "pringle",
+        "billroth", "roux", "heller", "hartmann", "miles", "graham",
+        "boerhaave", "mallory", "mallory-weiss", "weiss", "curling", "cushing",
+        "virchow", "charcot", "murphy", "mcburney", "rovsing", "cullen",
+        "ranson", "sengstaken", "blakemore"
+    ]
+
+    /// Medical/disease terms named after a place that a generic place
+    /// detector can mistake for an actual geographic mention (e.g. "the
+    /// patient had Lyme disease" is not a location disclosure) -- never
+    /// redacted even when they look like a place name. Hand-curated and
+    /// expected to grow, same pattern as `eponymAllowlist` above.
+    private static let geographicMedicalTermAllowlist: Set<String> = [
+        "lyme", "west nile", "rocky mountain", "german", "japanese",
+        "norwegian", "marburg", "ebola", "zika", "spanish", "asian",
+        "hong kong", "legionnaires", "legionnaires'", "middle east",
+        "mediterranean", "angina"
+    ]
+
+    /// Backstop for hospital/clinic names NLTagger's general-purpose NER
+    /// unreliably misses entirely (confirmed empirically: it missed
+    /// "Massachusetts General Hospital" and "Mount Sinai Hospital" outright,
+    /// and mis-split "St. Mary's Hospital"). Matches a run of capitalized
+    /// words immediately followed by a common institutional-name keyword,
+    /// which real generic mentions ("the hospital", "an outside hospital")
+    /// don't match since they aren't capitalized.
+    private static let institutionKeywordPattern: NSRegularExpression = {
+        let pattern = #"\b(?:[A-Z][A-Za-z'.]*\s+){1,6}(?:Hospital|Clinic|Medical Center|Health System|Infirmary|Institute|Health Center)\b"#
+        return try! NSRegularExpression(pattern: pattern)
+    }()
+
+    private let medicalDictionary: MedicalDictionaryService
+
+    init(medicalDictionary: MedicalDictionaryService? = nil) {
+        self.medicalDictionary = medicalDictionary ?? .shared
+    }
+
+    func redact(_ text: String) -> PHIFilterResult {
+        guard !text.isEmpty else { return PHIFilterResult(redactedText: text, findings: []) }
+
+        let nsText = text as NSString
+        let located = locatedMatches(in: text)
+        guard !located.isEmpty else {
+            return PHIFilterResult(redactedText: text, findings: [])
+        }
+
+        var findings: [PHIFinding] = []
+        var redacted = ""
+        var cursor = 0
+        for match in located {
+            redacted += nsText.substring(with: NSRange(location: cursor, length: match.range.location - cursor))
+            findings.append(PHIFinding(category: match.category, originalText: nsText.substring(with: match.range)))
+            redacted += match.category.placeholder
+            cursor = match.range.location + match.range.length
+        }
+        redacted += nsText.substring(from: cursor)
+
+        return PHIFilterResult(redactedText: redacted, findings: findings)
+    }
+
+    /// Same detection as `redact(_:)`, but returns each finding's character
+    /// range in `text` instead of a redacted string. Used to map findings
+    /// back to word-level recognition timing so the audio itself can be
+    /// redacted, not just displayed text -- see `AudioRedactionService`.
+    func find(in text: String) -> [PHILocatedFinding] {
+        guard !text.isEmpty else { return [] }
+        let nsText = text as NSString
+        return locatedMatches(in: text).map {
+            PHILocatedFinding(category: $0.category, originalText: nsText.substring(with: $0.range), range: $0.range)
+        }
+    }
+
+    /// Every non-overlapping PHI-shaped match in `text`, sorted by
+    /// position -- the detection logic shared by `redact(_:)` and
+    /// `find(in:)`, so it exists in exactly one place.
+    private func locatedMatches(in text: String) -> [(range: NSRange, category: PHIFinding.Category)] {
+        guard !text.isEmpty else { return [] }
+
+        var matches: [(range: NSRange, category: PHIFinding.Category)] = []
+        let nsText = text as NSString
+        let fullRange = NSRange(location: 0, length: nsText.length)
+
+        if let dateDetector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.date.rawValue) {
+            for match in dateDetector.matches(in: text, range: fullRange) {
+                matches.append((match.range, .date))
+            }
+        }
+
+        for match in Self.institutionKeywordPattern.matches(in: text, range: fullRange) {
+            matches.append((match.range, .institution))
+        }
+
+        let tagger = NLTagger(tagSchemes: [.nameType])
+        tagger.string = text
+        let options: NLTagger.Options = [.omitWhitespace, .omitPunctuation, .joinNames]
+        tagger.enumerateTags(in: text.startIndex..<text.endIndex, unit: .word, scheme: .nameType, options: options) { tag, range in
+            guard let tag else { return true }
+            let category: PHIFinding.Category
+            let allowlist: Set<String>
+            switch tag {
+            case .personalName:
+                category = .name
+                allowlist = Self.eponymAllowlist
+            case .organizationName:
+                // Preserves the pre-existing behavior exactly (this guard
+                // applied to every tagged category before the location
+                // addition below split it per-category) -- not because
+                // eponyms are expected to be mistagged as organizations,
+                // just to avoid narrowing what was already exempted here.
+                category = .institution
+                allowlist = Self.eponymAllowlist
+            case .placeName:
+                category = .location
+                allowlist = Self.geographicMedicalTermAllowlist
+            default:
+                return true
+            }
+            let matchedWord = String(text[range])
+            guard !Self.isKnownMedicalTerm(matchedWord, allowlist: allowlist, in: self.medicalDictionary) else { return true }
+            matches.append((NSRange(range, in: text), category))
+            return true
+        }
+
+        // Sort by start position, then by longest-first so that when two
+        // sources (e.g. the institution regex and NLTagger) both match
+        // starting at the same point, the more complete match deterministically
+        // wins the overlap-exclusion below, regardless of sort stability.
+        matches.sort {
+            $0.range.location != $1.range.location
+                ? $0.range.location < $1.range.location
+                : $0.range.length > $1.range.length
+        }
+        var nonOverlapping: [(range: NSRange, category: PHIFinding.Category)] = []
+        var lastEnd = 0
+        for match in matches where match.range.location >= lastEnd {
+            nonOverlapping.append(match)
+            lastEnd = match.range.location + match.range.length
+        }
+        return nonOverlapping
+    }
+
+    private static func isKnownMedicalTerm(_ word: String, allowlist: Set<String>, in dictionary: MedicalDictionaryService) -> Bool {
+        allowlist.contains(word.lowercased()) || dictionary.contains(word)
+    }
+}
+
+/// A PHI finding with its character range in the text it was found in
+/// (NSString/UTF-16 indexed, matching Foundation's text-scanning APIs --
+/// convert with `Range(range, in: text)` for a specific `text` value).
+/// Distinct from `PHIFinding` (used by `redact(_:)`), which only carries
+/// enough to build a redacted string and a user-facing notice, not
+/// position -- see `PHIFilterService.find(in:)`.
+struct PHILocatedFinding {
+    let category: PHIFinding.Category
+    let originalText: String
+    let range: NSRange
+}

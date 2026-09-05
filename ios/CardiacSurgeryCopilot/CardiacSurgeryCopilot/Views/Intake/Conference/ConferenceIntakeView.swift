@@ -2,10 +2,9 @@
 //  ConferenceIntakeView.swift
 //  CardiacSurgeryCopilot
 //
-//  The trainee describes the case naturally -- by typing (dictation isn't
-//  ported into this app yet, see ConferenceIntakeViewModel) -- rather than
-//  filling out structured clinical fields. Reached from ConferenceHomeView's
-//  "Start a New Case".
+//  The trainee describes the case naturally -- by dictating or typing --
+//  rather than filling out structured clinical fields. Reached from
+//  ConferenceHomeView's "Start a New Case".
 //
 
 import SwiftUI
@@ -13,7 +12,6 @@ import SwiftUI
 struct ConferenceIntakeView: View {
     @StateObject private var viewModel: ConferenceIntakeViewModel
     @Binding var path: [ConferenceRoute]
-    @FocusState private var isEditorFocused: Bool
 
     init(path: Binding<[ConferenceRoute]>, viewModel: ConferenceIntakeViewModel? = nil) {
         _path = path
@@ -49,6 +47,12 @@ struct ConferenceIntakeView: View {
                     editorCard
                         .disabled(viewModel.isSubmitting)
 
+                    if !viewModel.spellingSuggestions.isEmpty {
+                        Text("Double-check spelling: \(viewModel.spellingSuggestions.joined(separator: ", "))")
+                            .font(.footnote)
+                            .foregroundStyle(Color.slateText)
+                    }
+
                     if let errorMessage = viewModel.errorMessage {
                         Text(errorMessage)
                             .font(.footnote)
@@ -75,6 +79,38 @@ struct ConferenceIntakeView: View {
         .animation(.easeInOut(duration: 0.25), value: viewModel.isSubmitting)
         .navigationTitle("New Case")
         .navigationBarTitleDisplayMode(.inline)
+        .alert("Dictation Unavailable",
+               isPresented: dictationErrorBinding,
+               presenting: viewModel.dictationErrorMessage) { _ in
+            Button("OK") { viewModel.dictationErrorMessage = nil }
+        } message: { message in
+            Text(message)
+        }
+        .alert("Possible Patient Information Removed",
+               isPresented: phiNoticeBinding,
+               presenting: viewModel.phiNoticeMessage) { _ in
+            Button("OK") { viewModel.phiNoticeMessage = nil }
+        } message: { message in
+            Text(message)
+        }
+    }
+
+    private var dictationErrorBinding: Binding<Bool> {
+        Binding(
+            get: { viewModel.dictationErrorMessage != nil },
+            set: { isPresented in
+                if !isPresented { viewModel.dictationErrorMessage = nil }
+            }
+        )
+    }
+
+    private var phiNoticeBinding: Binding<Bool> {
+        Binding(
+            get: { viewModel.phiNoticeMessage != nil },
+            set: { isPresented in
+                if !isPresented { viewModel.phiNoticeMessage = nil }
+            }
+        )
     }
 
     private var header: some View {
@@ -88,17 +124,20 @@ struct ConferenceIntakeView: View {
         }
     }
 
+    /// Boxes the dictate-or-type hint together with the editor and its mic
+    /// control so the whole "how to give me the case" unit reads as one
+    /// intentional surface.
     private var editorCard: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("\(Image(systemName: "keyboard")) Type the case summary.")
-                .font(.footnote.weight(.medium))
-                .foregroundStyle(Color.slateText)
+            inputModeHint
 
-            TextEditor(text: $viewModel.narrativeText)
-                .focused($isEditorFocused)
-                .scrollContentBackground(.hidden)
-                .frame(minHeight: 200)
-                .font(.body)
+            DictationEditorView(
+                text: $viewModel.narrativeText,
+                phase: viewModel.dictationPhase,
+                placeholder: "A 64-year-old man presents with an NSTEMI…",
+                minHeight: 160,
+                onToggleDictation: { Task { await viewModel.toggleDictation() } }
+            )
         }
         .padding(16)
         .frame(maxHeight: .infinity)
@@ -110,12 +149,15 @@ struct ConferenceIntakeView: View {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
         )
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("Done") { isEditorFocused = false }
-            }
-        }
+    }
+
+    /// A single flowing sentence so it wraps naturally as one paragraph on narrow screens.
+    private var inputModeHint: some View {
+        Text("\(Image(systemName: "mic.fill")) Dictate or \(Image(systemName: "keyboard")) type -- whichever is easier.")
+            .font(.footnote.weight(.medium))
+            .foregroundStyle(Color.slateText)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("You can dictate or type the case summary, whichever is easier.")
     }
 
     private var continueFooter: some View {
@@ -128,7 +170,6 @@ struct ConferenceIntakeView: View {
 
     private var continueButton: some View {
         Button {
-            isEditorFocused = false
             Task {
                 guard let created = await viewModel.submit() else { return }
                 if created.nextQuestion == nil {

@@ -17,7 +17,6 @@ import SwiftUI
 struct ConferenceInterviewView: View {
     @StateObject private var viewModel: ConferenceInterviewViewModel
     @Binding var path: [ConferenceRoute]
-    @FocusState private var isEditorFocused: Bool
 
     init(caseId: String, initialCase: ConferenceCase?, path: Binding<[ConferenceRoute]>, viewModel: ConferenceInterviewViewModel? = nil) {
         _path = path
@@ -56,39 +55,34 @@ struct ConferenceInterviewView: View {
     }
 
     /// The editor needs a genuine upper bound (a fixed bottom submit
-    /// region + a flexible, top-anchored content region) so a long typed
-    /// answer scrolls internally instead of extending off the bottom of
-    /// the screen -- same layout reasoning as ConferenceIntakeView.
+    /// region + a flexible, top-anchored content region) so a long
+    /// dictated/typed answer scrolls internally instead of extending off
+    /// the bottom of the screen -- same layout reasoning as
+    /// ConferenceIntakeView.
     private func interviewContent(question: ConferenceQuestion) -> some View {
         VStack(spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    questionCard(question)
+            VStack(alignment: .leading, spacing: 20) {
+                questionCard(question)
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("\(Image(systemName: "keyboard")) Type your answer.")
-                            .font(.footnote.weight(.medium))
-                            .foregroundStyle(Color.slateText)
-
-                        TextEditor(text: $viewModel.answerText)
-                            .focused($isEditorFocused)
-                            .scrollContentBackground(.hidden)
-                            .frame(minHeight: 120)
-                            .font(.body)
-                            .padding(10)
-                            .background(
-                                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    .fill(Color(.secondarySystemGroupedBackground))
-                            )
-                    }
-                }
-                .padding(20)
+                DictationEditorView(
+                    text: $viewModel.answerText,
+                    phase: viewModel.dictationPhase,
+                    placeholder: "Answer as you would explain it out loud…",
+                    minHeight: 120,
+                    onToggleDictation: { Task { await viewModel.toggleDictation() } }
+                )
+                .frame(maxHeight: .infinity)
             }
-
-            Divider()
-                .opacity(0.5)
+            .padding(20)
+            .frame(maxHeight: .infinity, alignment: .top)
 
             VStack(alignment: .leading, spacing: 12) {
+                if !viewModel.spellingSuggestions.isEmpty {
+                    Text("Double-check spelling: \(viewModel.spellingSuggestions.joined(separator: ", "))")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+
                 if let errorMessage = viewModel.errorMessage {
                     Text(errorMessage)
                         .font(.footnote)
@@ -96,7 +90,6 @@ struct ConferenceInterviewView: View {
                 }
 
                 Button {
-                    isEditorFocused = false
                     Task {
                         await viewModel.submitAnswer()
                         navigateIfReady()
@@ -116,12 +109,38 @@ struct ConferenceInterviewView: View {
             .padding(.bottom, 16)
             .background(Color.warmBackground)
         }
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("Done") { isEditorFocused = false }
-            }
+        .alert("Dictation Unavailable",
+               isPresented: dictationErrorBinding,
+               presenting: viewModel.dictationErrorMessage) { _ in
+            Button("OK") { viewModel.dictationErrorMessage = nil }
+        } message: { message in
+            Text(message)
         }
+        .alert("Possible Patient Information Removed",
+               isPresented: phiNoticeBinding,
+               presenting: viewModel.phiNoticeMessage) { _ in
+            Button("OK") { viewModel.phiNoticeMessage = nil }
+        } message: { message in
+            Text(message)
+        }
+    }
+
+    private var dictationErrorBinding: Binding<Bool> {
+        Binding(
+            get: { viewModel.dictationErrorMessage != nil },
+            set: { isPresented in
+                if !isPresented { viewModel.dictationErrorMessage = nil }
+            }
+        )
+    }
+
+    private var phiNoticeBinding: Binding<Bool> {
+        Binding(
+            get: { viewModel.phiNoticeMessage != nil },
+            set: { isPresented in
+                if !isPresented { viewModel.phiNoticeMessage = nil }
+            }
+        )
     }
 
     private func questionCard(_ question: ConferenceQuestion) -> some View {

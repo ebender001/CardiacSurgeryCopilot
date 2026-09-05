@@ -1,0 +1,190 @@
+//
+//  DictationEditorView.swift
+//  CardiacSurgeryCopilot
+//
+//  A TextEditor with an attached mic-dictation control, shared by the
+//  case-intake and interview-answer flows -- both compose a
+//  DictationController the same way (see ConferenceIntakeViewModel /
+//  ConferenceInterviewViewModel), so this view only needs the current
+//  phase, a toggle action, and a text binding.
+//
+
+import SwiftUI
+
+struct DictationEditorView: View {
+    @Binding var text: String
+    let phase: DictationPhase
+    let placeholder: String
+    /// A floor, not a fixed size -- the editor expands to fill whatever
+    /// vertical space its parent has left over (see callers' use of
+    /// `.frame(maxHeight: .infinity)`), using the remaining screen real
+    /// estate instead of sitting short with empty space below it. Long
+    /// text still scrolls *inside* the editor (TextEditor's native
+    /// scrolling) once it exceeds however tall that ends up being, rather
+    /// than growing without bound and scrolling the whole screen.
+    let minHeight: CGFloat
+    let onToggleDictation: () -> Void
+
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            editor
+            dictationControl
+        }
+        .frame(maxHeight: .infinity)
+    }
+
+    /// `TextEditor` inside nested `.frame(maxHeight: .infinity)` VStacks is
+    /// known to sometimes ignore that as a true ceiling and report its own
+    /// content-driven ideal height instead -- for a long dictation, that
+    /// grows the whole screen's layout rather than scrolling internally,
+    /// pushing the mic control (and on some screens the submit/continue
+    /// button) off the bottom, invisible. `GeometryReader` sidesteps this:
+    /// `proxy.size` is the FINAL, already-resolved size after the
+    /// surrounding VStack chain has settled, so handing that to
+    /// `TextEditor` as an explicit `height:` (not a `maxHeight` hint)
+    /// reliably forces it to respect that ceiling and scroll its own
+    /// content beyond it, which is what "long text still scrolls inside
+    /// the editor" actually requires -- not just intends.
+    private var editor: some View {
+        GeometryReader { proxy in
+            TextEditor(text: $text)
+                .focused($isFocused)
+                .font(.body)
+                .scrollContentBackground(.hidden)
+                .padding(12)
+                .frame(width: proxy.size.width, height: proxy.size.height)
+                .disabled(phase != .idle)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Color(.secondarySystemBackground)))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .strokeBorder(Color.copilotPrimary.opacity(isFocused ? 0.35 : 0.08), lineWidth: isFocused ? 1.5 : 1)
+                )
+                .overlay(alignment: .topLeading) {
+                    if text.isEmpty, phase == .idle {
+                        Text(placeholder)
+                            .font(.body)
+                            .foregroundStyle(.tertiary)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 20)
+                            .allowsHitTesting(false)
+                    }
+                }
+                .overlay { editorOverlay }
+                .animation(.easeInOut(duration: 0.2), value: phase)
+                .animation(.easeInOut(duration: 0.15), value: isFocused)
+        }
+        .frame(minHeight: minHeight, maxHeight: .infinity)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") { isFocused = false }
+                    .foregroundStyle(Color.copilotPrimaryText)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var editorOverlay: some View {
+        switch phase {
+        case .idle:
+            EmptyView()
+        case .listening:
+            statusOverlay(message: "Listening… don't include patient names, staff or institution names, dates, or locations.") {
+                WaveformView()
+            }
+        case .finishingUp:
+            statusOverlay(message: "Finishing up…") {
+                ProgressView()
+            }
+        case .correcting:
+            statusOverlay(message: "Checking medical terms…") {
+                ProgressView()
+            }
+        }
+    }
+
+    private func statusOverlay(message: String, @ViewBuilder indicator: () -> some View) -> some View {
+        RoundedRectangle(cornerRadius: 12)
+            .fill(.thinMaterial)
+            .overlay {
+                VStack(spacing: 14) {
+                    indicator()
+                    Text(message)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
+                }
+            }
+            .allowsHitTesting(false)
+            .transition(.opacity)
+    }
+
+    private var dictationControl: some View {
+        VStack(spacing: 8) {
+            HStack {
+                Spacer()
+                Button {
+                    isFocused = false
+                    onToggleDictation()
+                } label: {
+                    micButtonLabel
+                }
+                .disabled(phase == .finishingUp || phase == .correcting)
+                .accessibilityLabel(micAccessibilityLabel)
+                Spacer()
+            }
+            Text(dictationCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private var micButtonLabel: some View {
+        let diameter: CGFloat = 64
+        switch phase {
+        case .idle:
+            Image(systemName: "mic")
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(Color.copilotPrimaryText)
+                .frame(width: diameter, height: diameter)
+                .background(Circle().fill(Color(.secondarySystemBackground)))
+                .overlay(Circle().strokeBorder(Color.copilotPrimaryText.opacity(0.25), lineWidth: 1.5))
+        case .listening:
+            Image(systemName: "mic.fill")
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(Color.white)
+                .frame(width: diameter, height: diameter)
+                .background(Circle().fill(Color.copilotPrimary))
+                .overlay(Circle().strokeBorder(Color.copilotAccent, lineWidth: 3))
+                .shadow(color: Color.copilotPrimary.opacity(0.3), radius: 8, y: 3)
+        case .finishingUp, .correcting:
+            ProgressView()
+                .tint(Color.copilotPrimaryText)
+                .frame(width: diameter, height: diameter)
+                .background(Circle().fill(Color(.secondarySystemBackground)))
+                .overlay(Circle().strokeBorder(Color.copilotPrimaryText.opacity(0.15), lineWidth: 1.5))
+        }
+    }
+
+    private var micAccessibilityLabel: String {
+        switch phase {
+        case .idle: return "Start dictation"
+        case .listening: return "Stop dictation"
+        case .finishingUp: return "Finishing dictation"
+        case .correcting: return "Checking medical terms"
+        }
+    }
+
+    private var dictationCaption: String {
+        switch phase {
+        case .idle: return "Tap to dictate"
+        case .listening: return "Listening — tap to stop"
+        case .finishingUp: return "Finishing up…"
+        case .correcting: return "Checking medical terms…"
+        }
+    }
+}
