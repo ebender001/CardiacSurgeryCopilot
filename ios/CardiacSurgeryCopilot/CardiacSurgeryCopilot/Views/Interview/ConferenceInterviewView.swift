@@ -126,10 +126,15 @@ struct ConferenceInterviewView: View {
         } message: { message in
             Text(message)
         }
-        .confirmationDialog(
+        // A plain alert rather than confirmationDialog -- confirmationDialog
+        // can render as an iPad-style popover (seen even on an iPhone
+        // simulator here) where the system omits the cancel-role button
+        // entirely, on the assumption that tapping outside the popover
+        // serves as "cancel" -- not discoverable, and not worth the risk
+        // versus alert's simple, always-shows-every-button behavior.
+        .alert(
             "Stop Answering Questions?",
-            isPresented: $isConfirmingSkip,
-            titleVisibility: .visible
+            isPresented: $isConfirmingSkip
         ) {
             Button("Stop and Continue", role: .destructive) {
                 Task {
