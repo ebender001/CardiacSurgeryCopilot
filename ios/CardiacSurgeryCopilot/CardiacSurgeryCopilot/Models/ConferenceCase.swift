@@ -18,6 +18,14 @@ import Foundation
 struct ConferenceCase: Decodable, Identifiable, Hashable {
     let id: String
     var status: ConferenceCaseStatus
+    /// The trainee's original dictated/typed case description -- present on
+    /// every case-scoped response (create/answer/skip/get all return it;
+    /// see formatCaseSummary/formatFullCase in backend/README.md) so the
+    /// interview screen can always show it back to the trainee while
+    /// they're answering a follow-up question, including when resuming an
+    /// in-progress case from Recent Cases. `nil` only for a response shape
+    /// that never carries it (formatFinalizedCase).
+    var originalNarrative: String?
     var nextQuestion: ConferenceQuestion?
     /// Present only once the case is `completed` (from finalizeConferenceCase
     /// / getConferenceCase); `nil` for a case still being collected or
@@ -33,6 +41,7 @@ struct ConferenceCase: Decodable, Identifiable, Hashable {
     private enum CodingKeys: String, CodingKey {
         case id = "caseId"
         case status
+        case originalNarrative
         case nextQuestion
         case report
         case conversation
@@ -42,15 +51,17 @@ struct ConferenceCase: Decodable, Identifiable, Hashable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
         status = try container.decode(ConferenceCaseStatus.self, forKey: .status)
+        originalNarrative = try container.decodeIfPresent(String.self, forKey: .originalNarrative)
         nextQuestion = try container.decodeIfPresent(ConferenceQuestion.self, forKey: .nextQuestion)
         report = try container.decodeIfPresent(ConferenceReport.self, forKey: .report)
         conversation = try container.decodeIfPresent([ConferenceConversationEntry].self, forKey: .conversation) ?? []
     }
 
     /// Convenience initializer for previews and tests.
-    init(id: String, status: ConferenceCaseStatus, nextQuestion: ConferenceQuestion? = nil, report: ConferenceReport? = nil, conversation: [ConferenceConversationEntry] = []) {
+    init(id: String, status: ConferenceCaseStatus, originalNarrative: String? = nil, nextQuestion: ConferenceQuestion? = nil, report: ConferenceReport? = nil, conversation: [ConferenceConversationEntry] = []) {
         self.id = id
         self.status = status
+        self.originalNarrative = originalNarrative
         self.nextQuestion = nextQuestion
         self.report = report
         self.conversation = conversation

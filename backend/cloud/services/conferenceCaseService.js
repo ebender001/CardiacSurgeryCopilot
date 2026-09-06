@@ -1,7 +1,7 @@
 /**
  * Coordinates the Preoperative Case Conference workflow: creating cases,
  * incorporating answers, deciding when to stop asking questions, and
- * finalizing the ten-section report. This is the module Cloud Functions
+ * finalizing the nine-section report. This is the module Cloud Functions
  * call into -- it delegates extraction/question-generation/finalization to
  * ai/*, and persistence to conferenceCaseRepository.
  */
@@ -286,8 +286,6 @@ async function finalizeCase({ caseId, ownerId }) {
     extractedCase: caseState.extractedCase,
     conversation: caseState.conversation,
     originalNarrative: caseState.originalNarrative,
-    heartTeamResponses: caseState.heartTeamResponses,
-    heartTeamEvidence: caseState.heartTeamEvidence,
     caseId,
   });
   await recordAIUsage({ caseId, ownerId, operation: 'finalizeConferenceCase', meta: result.meta });
@@ -301,16 +299,6 @@ async function finalizeCase({ caseId, ownerId }) {
     controversies: result.controversies,
     technicalConsiderations: result.technicalConsiderations,
     postoperativeConcerns: result.postoperativeConcerns,
-    preponderanceOfEvidence: result.preponderanceOfEvidence,
-    // Computed deterministically here, not left to the AI to self-report --
-    // lets the client nudge the trainee toward reviewing evidence for
-    // whichever roles are missing, without trusting free text to encode
-    // that state reliably. A snapshot as of finalize time, same as
-    // preponderanceOfEvidence itself: reviewing more evidence afterward
-    // doesn't retroactively update either without re-finalizing.
-    evidenceReviewedRoles: Object.keys(caseState.heartTeamResponses || {}).filter(
-      (role) => caseState.heartTeamEvidence && caseState.heartTeamEvidence[role]
-    ),
     evidenceGuidelines: result.evidenceGuidelines,
   };
 
@@ -562,11 +550,18 @@ async function cacheReferenceLookup({ caseId, existingLookups, topic, query, res
   await conferenceCaseRepository.update(caseId, { referenceLookups });
 }
 
-/** Response shape for cscCreateConferenceCase / cscAnswerConferenceQuestion. */
+/**
+ * Response shape for cscCreateConferenceCase / cscAnswerConferenceQuestion
+ * / cscSkipRemainingConferenceQuestions. Includes `originalNarrative` (cheap --
+ * already in memory on `caseState`) so the client can show the trainee what
+ * they typed/dictated while answering a follow-up question, without a
+ * separate cscGetConferenceCase round trip.
+ */
 function formatCaseSummary(caseState) {
   return {
     caseId: caseState.objectId,
     status: caseState.status,
+    originalNarrative: caseState.originalNarrative,
     extractedCase: caseState.extractedCase,
     nextQuestion: toNextQuestion(caseState.currentQuestion),
   };

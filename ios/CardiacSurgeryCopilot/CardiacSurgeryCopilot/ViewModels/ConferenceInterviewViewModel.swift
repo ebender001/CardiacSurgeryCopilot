@@ -16,6 +16,14 @@ final class ConferenceInterviewViewModel: ObservableObject {
     let caseId: String
 
     @Published private(set) var status: ConferenceCaseStatus
+    /// The trainee's original dictated/typed case description -- shown
+    /// alongside the current question so they have what they described
+    /// in front of them while answering, especially when resuming an
+    /// in-progress case from Recent Cases rather than coming straight
+    /// from ConferenceIntakeView. `nil` only until `loadIfNeeded()`
+    /// resolves (or on a create/answer response, this is never nil --
+    /// see formatCaseSummary in backend/README.md).
+    @Published private(set) var originalNarrative: String?
     @Published private(set) var currentQuestion: ConferenceQuestion?
     @Published var answerText = "" {
         didSet {
@@ -55,6 +63,7 @@ final class ConferenceInterviewViewModel: ObservableObject {
         let medicalDictionary = medicalDictionary ?? .shared
         self.caseId = caseId
         self.status = initialCase?.status ?? .collectingInformation
+        self.originalNarrative = initialCase?.originalNarrative
         self.currentQuestion = initialCase?.nextQuestion
         self.isLoadingCase = initialCase == nil
         self.medicalDictionary = medicalDictionary
@@ -143,6 +152,7 @@ final class ConferenceInterviewViewModel: ObservableObject {
 
     private func apply(_ result: ConferenceCase) {
         status = result.status
+        originalNarrative = result.originalNarrative
         currentQuestion = result.nextQuestion
     }
 

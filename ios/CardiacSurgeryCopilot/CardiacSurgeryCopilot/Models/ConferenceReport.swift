@@ -2,7 +2,7 @@
 //  ConferenceReport.swift
 //  CardiacSurgeryCopilot
 //
-//  The ten-section preoperative case conference report -- nine prose
+//  The nine-section preoperative case conference report -- eight prose
 //  sections plus a list of evidence/guideline topics -- as returned by
 //  cscFinalizeConferenceCase / cscUpdateConferenceReport, or inline on
 //  cscGetConferenceCase once a case is `completed`. See backend/README.md.
@@ -32,20 +32,5 @@ struct ConferenceReport: Decodable, Hashable {
     let controversies: String
     let technicalConsiderations: String
     let postoperativeConcerns: String
-    /// Whether the totality of reviewed heart-team evidence leans toward
-    /// one approach, is genuinely mixed, or is too thin to say -- see
-    /// finalizeConferencePrompt.js. Optional (rather than required, like
-    /// every other section) only so a report finalized before this field
-    /// existed still decodes -- `nil` there, never an empty string; a
-    /// report finalized after this field's introduction always has it.
-    let preponderanceOfEvidence: String?
-    /// Which heart-team roles had their evidence (see HeartTeamEvidenceView)
-    /// reviewed as of when this report was finalized -- lets the client
-    /// nudge toward reviewing the rest rather than trusting
-    /// `preponderanceOfEvidence`'s free text to convey that reliably.
-    /// `nil` (not just empty) for a report finalized before this field
-    /// existed, so an old report is never nudged based on data it never
-    /// tracked -- `[]` means "tracked, and reviewed for zero roles".
-    let evidenceReviewedRoles: [HeartTeamRole]?
     let evidenceGuidelines: [ConferenceReferenceTopic]
 }

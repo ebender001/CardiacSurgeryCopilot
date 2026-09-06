@@ -18,6 +18,16 @@ struct ConferenceInterviewView: View {
     @StateObject private var viewModel: ConferenceInterviewViewModel
     @Binding var path: [ConferenceRoute]
     @State private var isConfirmingSkip = false
+    /// Presents the case-summary sheet -- both the automatic first-question
+    /// showing and every later reopening via the toolbar button drive this
+    /// same flag (see showCaseSummaryIfNeeded() / the toolbar button).
+    @State private var isShowingCaseSummary = false
+    /// Ensures the sheet only opens on its own once per case, the first
+    /// time a question is on screen -- this view instance handles every
+    /// question in the loop in place (see the type doc above), so without
+    /// this flag showCaseSummaryIfNeeded() would need to run once rather
+    /// than firing again after each subsequent answer.
+    @State private var hasAutoShownCaseSummary = false
 
     init(caseId: String, initialCase: ConferenceCase?, path: Binding<[ConferenceRoute]>, viewModel: ConferenceInterviewViewModel? = nil) {
         _path = path
@@ -39,9 +49,52 @@ struct ConferenceInterviewView: View {
         .background(Color.warmBackground)
         .navigationTitle("Follow-Up Question")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if viewModel.originalNarrative != nil {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        isShowingCaseSummary = true
+                    } label: {
+                        Label("Case Summary", systemImage: "doc.text")
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $isShowingCaseSummary) {
+            if let originalNarrative = viewModel.originalNarrative {
+                NavigationStack {
+                    ConferenceCaseSummaryView(narrative: originalNarrative)
+                }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+            }
+        }
         .task {
             await viewModel.loadIfNeeded()
             navigateIfReady()
+            showCaseSummaryIfNeeded()
+        }
+    }
+
+    /// Auto-opens the case-summary sheet the first time this view has a
+    /// question to show -- for a resumed in-progress case just as much as
+    /// a freshly-created one, since either way the trainee is about to
+    /// answer a question about a narrative that may no longer be fresh in
+    /// their mind. A no-op once already shown (`hasAutoShownCaseSummary`)
+    /// or before there's anything to show it for.
+    ///
+    /// Waits a beat before flipping `isShowingCaseSummary` rather than
+    /// setting it in the same run loop turn as the question first
+    /// appearing -- doing it immediately can bundle the sheet's
+    /// presentation into the same transaction as this view's own
+    /// appearance, so it shows up already open instead of visibly sliding
+    /// up from the bottom once the follow-up question screen has settled.
+    private func showCaseSummaryIfNeeded() {
+        guard !hasAutoShownCaseSummary, viewModel.currentQuestion != nil, viewModel.originalNarrative != nil else { return }
+        hasAutoShownCaseSummary = true
+        Task {
+            try? await Task.sleep(for: .milliseconds(400))
+            isShowingCaseSummary = true
         }
     }
 
@@ -234,6 +287,7 @@ struct ConferenceInterviewView: View {
             initialCase: ConferenceCase(
                 id: "abc123",
                 status: .collectingInformation,
+                originalNarrative: "A 58-year-old Jehovah's Witness presents with severe symptomatic three-vessel coronary artery disease and an LVEF of 30%. Cardiac catheterization shows 90% proximal LAD stenosis, 80% stenosis of a large OM1, and 100% occlusion of the RCA with collaterals.",
                 nextQuestion: ConferenceQuestion(
                     id: "q1",
                     text: "Has the patient's religious objection to blood products been discussed with the team, and is a bloodless-surgery protocol in place?",

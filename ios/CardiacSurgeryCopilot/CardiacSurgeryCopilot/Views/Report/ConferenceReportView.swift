@@ -2,7 +2,7 @@
 //  ConferenceReportView.swift
 //  CardiacSurgeryCopilot
 //
-//  The ten-section preoperative case conference report -- nine prose
+//  The nine-section preoperative case conference report -- eight prose
 //  sections plus a tappable list of evidence/guideline topics. Reached
 //  either from an already-`completed` Recent Cases row or from
 //  HeartTeamResponsesView's "View Full Report" button; ConferenceReportViewModel
@@ -71,19 +71,6 @@ struct ConferenceReportView: View {
             section("Controversies", report.controversies)
             section("Technical Considerations", report.technicalConsiderations)
             section("Postoperative Concerns", report.postoperativeConcerns)
-            if let preponderanceOfEvidence = report.preponderanceOfEvidence {
-                Section {
-                    Text(preponderanceOfEvidence)
-                        .font(.body)
-                        .foregroundStyle(.primary)
-                        .padding(.vertical, 4)
-                    if !missingEvidenceRoles(report).isEmpty {
-                        evidenceNudge(missingEvidenceRoles(report))
-                    }
-                } header: {
-                    Text("Preponderance of Evidence")
-                }
-            }
             evidenceSection(report.evidenceGuidelines)
         }
         .listStyle(.plain)
@@ -99,46 +86,6 @@ struct ConferenceReportView: View {
         } header: {
             Text(title)
         }
-    }
-
-    /// Roles the report's preponderance statement couldn't weigh because
-    /// no evidence had been reviewed for them as of finalization -- `[]`
-    /// (never nudge) when the report predates evidence-review tracking,
-    /// since `nil` there means "unknown", not "none missing".
-    private func missingEvidenceRoles(_ report: ConferenceReport) -> [HeartTeamRole] {
-        guard let reviewed = report.evidenceReviewedRoles else { return [] }
-        return HeartTeamRole.allCases.filter { !reviewed.contains($0) }
-    }
-
-    /// Points the trainee back at Heart Team Responses (where each role's
-    /// "Evidence" button lives) to fill in whichever roles the
-    /// preponderance statement above couldn't account for. Reviewing
-    /// evidence there doesn't retroactively update this already-finalized
-    /// report -- this only helps the trainee build a fuller picture for
-    /// the conference itself, same spirit as HeartTeamEvidenceView.
-    private func evidenceNudge(_ missingRoles: [HeartTeamRole]) -> some View {
-        Button {
-            path.append(.heartTeamResponses(caseId: caseId))
-        } label: {
-            HStack(alignment: .top, spacing: 8) {
-                Image(systemName: "exclamationmark.circle")
-                    .foregroundStyle(Color.slateText)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Evidence not yet reviewed for \(missingRoles.map(\.displayName).formatted(.list(type: .and)))")
-                        .font(.footnote.weight(.medium))
-                        .foregroundStyle(.primary)
-                    Text("Review each role's evidence in Heart Team Responses before presenting.")
-                        .font(.caption)
-                        .foregroundStyle(Color.slateText)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(Color.slateText)
-            }
-            .padding(.vertical, 6)
-        }
-        .buttonStyle(.plain)
     }
 
     private func evidenceSection(_ topics: [ConferenceReferenceTopic]) -> some View {
@@ -189,8 +136,6 @@ extension ConferenceReport {
         controversies: "Whether to attempt CTO-PCI of the RCA first to reduce operative risk is a genuine point of disagreement among the heart team -- see the interventional cardiologist's response.",
         technicalConsiderations: "Bloodless-surgery protocol: preoperative iron/EPO optimization, intraoperative cell salvage, minimized hemodilution, and a low transfusion threshold discussion with the patient in advance.",
         postoperativeConcerns: "Close glycemic control given his insulin-dependent diabetes; monitor for bleeding given the bloodless-surgery constraints; reassess MR severity post-revascularization.",
-        preponderanceOfEvidence: "Based on the evidence reviewed so far, the surgeon's recommendation for CABG over staged PCI is well-supported for this three-vessel, reduced-EF pattern. Evidence has not yet been reviewed for the non-interventional or interventional cardiologist's positions, so this is not yet a complete weight-of-evidence picture.",
-        evidenceReviewedRoles: [.surgeon],
         evidenceGuidelines: [
             ConferenceReferenceTopic(
                 topic: "CABG vs. PCI in multivessel coronary artery disease with reduced ejection fraction",

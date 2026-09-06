@@ -272,10 +272,8 @@ describe('finalizeCase', () => {
     await expect(conferenceCaseService.finalizeCase({ caseId: 'case1', ownerId: 'user1' })).rejects.toThrow(NotFoundError);
   });
 
-  it('generates and persists the finalized ten-section report', async () => {
-    const heartTeamResponses = { surgeon: { recommendation: 'Proceed with SAVR.', rationale: 'Durability favors surgery.' } };
-    const heartTeamEvidence = { surgeon: { pro: { results: [] }, con: { results: [] } } };
-    const current = baseCaseState({ status: ConferenceCaseStatus.READY_TO_FINALIZE, heartTeamResponses, heartTeamEvidence });
+  it('generates and persists the finalized nine-section report', async () => {
+    const current = baseCaseState({ status: ConferenceCaseStatus.READY_TO_FINALIZE });
     conferenceCaseRepository.getById.mockResolvedValue(current);
     conferenceFinalizer.finalizeCase.mockResolvedValue({
       diagnosis: 'Severe aortic stenosis.',
@@ -286,7 +284,6 @@ describe('finalizeCase', () => {
       controversies: 'Valve choice given age.',
       technicalConsiderations: 'Calcified annulus.',
       postoperativeConcerns: 'Watch for heart block.',
-      preponderanceOfEvidence: 'Evidence favors surgical durability for this patient.',
       evidenceGuidelines: [{ topic: 't', searchIntent: 's', citation: null, verified: false }],
       meta: { model: 'gpt-test' },
       promptVersion: '1.0.0',
@@ -295,44 +292,9 @@ describe('finalizeCase', () => {
 
     const result = await conferenceCaseService.finalizeCase({ caseId: 'case1', ownerId: 'user1' });
 
-    expect(conferenceFinalizer.finalizeCase).toHaveBeenCalledWith(
-      expect.objectContaining({ heartTeamResponses, heartTeamEvidence })
-    );
     expect(result.status).toBe(ConferenceCaseStatus.COMPLETED);
     expect(result.report.diagnosis).toBe('Severe aortic stenosis.');
-    expect(result.report.preponderanceOfEvidence).toBe('Evidence favors surgical durability for this patient.');
-    expect(result.report.evidenceReviewedRoles).toEqual(['surgeon']);
     expect(result.report.evidenceGuidelines).toHaveLength(1);
-  });
-
-  it('lists only the roles whose evidence was actually reviewed, not just responded', async () => {
-    const heartTeamResponses = {
-      surgeon: { recommendation: 'Proceed with SAVR.', rationale: 'Durability.' },
-      nonInterventionalCardiologist: { recommendation: 'Optimize medical therapy first.', rationale: 'Risk stratification.' },
-      interventionalCardiologist: { recommendation: 'Consider TAVR.', rationale: 'Less invasive.' },
-    };
-    // Evidence reviewed for surgeon and interventionalCardiologist, but not
-    // nonInterventionalCardiologist -- confirms the computed list reflects
-    // heartTeamEvidence, not just which roles have a response.
-    const heartTeamEvidence = {
-      surgeon: { pro: { results: [] }, con: { results: [] } },
-      interventionalCardiologist: { pro: { results: [] }, con: { results: [] } },
-    };
-    const current = baseCaseState({ status: ConferenceCaseStatus.READY_TO_FINALIZE, heartTeamResponses, heartTeamEvidence });
-    conferenceCaseRepository.getById.mockResolvedValue(current);
-    conferenceFinalizer.finalizeCase.mockResolvedValue({
-      diagnosis: 'd', indication: 'i', missingInformation: 'm', operativeStrategy: 'o',
-      alternatives: 'a', controversies: 'c', technicalConsiderations: 't', postoperativeConcerns: 'p',
-      preponderanceOfEvidence: 'Mixed evidence across roles.',
-      evidenceGuidelines: [],
-      meta: { model: 'gpt-test' },
-      promptVersion: '1.0.0',
-    });
-    conferenceCaseRepository.update.mockImplementation(async (id, patch) => ({ ...current, ...patch }));
-
-    const result = await conferenceCaseService.finalizeCase({ caseId: 'case1', ownerId: 'user1' });
-
-    expect(result.report.evidenceReviewedRoles).toEqual(['surgeon', 'interventionalCardiologist']);
   });
 });
 
@@ -719,6 +681,7 @@ describe('response formatters', () => {
     expect(conferenceCaseService.formatCaseSummary(state)).toEqual({
       caseId: 'case1',
       status: ConferenceCaseStatus.COLLECTING_INFORMATION,
+      originalNarrative: 'narrative',
       extractedCase: { diagnosis: 'Severe aortic stenosis' },
       nextQuestion: { id: 'q1', text: 'Q text', category: 'risk factors', reason: 'r' },
     });
