@@ -15,11 +15,6 @@ struct ConferenceHomeView: View {
     @State private var isConfirmingSignOut = false
     let onSignOut: () -> Void
 
-    #if DEBUG
-    @State private var isCreatingDebugCase = false
-    @State private var debugCaseErrorMessage: String?
-    #endif
-
     init(onSignOut: @escaping () -> Void, viewModel: ConferenceHomeViewModel? = nil) {
         self.onSignOut = onSignOut
         _viewModel = StateObject(wrappedValue: viewModel ?? ConferenceHomeViewModel())
@@ -139,21 +134,6 @@ struct ConferenceHomeView: View {
                     }
                     .accessibilityLabel("Account")
                 }
-                #if DEBUG
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        Task { await createDebugCaseAndNavigate() }
-                    } label: {
-                        if isCreatingDebugCase {
-                            ProgressView()
-                        } else {
-                            Image(systemName: "ladybug.fill")
-                        }
-                    }
-                    .disabled(isCreatingDebugCase)
-                    .accessibilityLabel("Debug: create a real case from seed narrative and skip to Heart Team")
-                }
-                #endif
                 if !viewModel.recentCases.isEmpty {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         EditButton()
@@ -198,46 +178,8 @@ struct ConferenceHomeView: View {
                     onCancel: { viewModel.isPresentingAIConsent = false }
                 )
             }
-            #if DEBUG
-            .alert("Debug case failed", isPresented: debugErrorBinding) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(debugCaseErrorMessage ?? "")
-            }
-            #endif
         }
     }
-
-    #if DEBUG
-    private var debugErrorBinding: Binding<Bool> {
-        Binding(
-            get: { debugCaseErrorMessage != nil },
-            set: { if !$0 { debugCaseErrorMessage = nil } }
-        )
-    }
-
-    /// Creates a REAL backend case from the same seed narrative
-    /// ConferenceIntakeView pre-fills, then routes exactly like
-    /// ConferenceIntakeView's own Continue button would -- straight to
-    /// heart team responses if the case needs no follow-up, or into the
-    /// interview loop if it does (the seed narrative doesn't always land
-    /// ready-to-finalize; it depends on what the question-generator
-    /// decides is still missing). Never used in Release.
-    private func createDebugCaseAndNavigate() async {
-        isCreatingDebugCase = true
-        defer { isCreatingDebugCase = false }
-        do {
-            let created = try await BackendService.createConferenceCase(narrative: ConferenceIntakeView.debugSeedNarrative)
-            if created.nextQuestion == nil {
-                path.append(.heartTeamResponses(caseId: created.id))
-            } else {
-                path.append(.interview(caseId: created.id, initialCase: created))
-            }
-        } catch {
-            debugCaseErrorMessage = (error as? LocalizedError)?.errorDescription ?? "Something went wrong. Please try again."
-        }
-    }
-    #endif
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 2) {

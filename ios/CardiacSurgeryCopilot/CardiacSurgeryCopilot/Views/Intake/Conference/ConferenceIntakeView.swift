@@ -18,21 +18,6 @@ struct ConferenceIntakeView: View {
         _viewModel = StateObject(wrappedValue: viewModel ?? ConferenceIntakeViewModel())
     }
 
-    /// DEBUG-only seed text used solely by ConferenceHomeView's ladybug
-    /// shortcut, which creates a real backend case directly (bypassing
-    /// this screen's text field) so the create-case round trip can be
-    /// exercised without retyping a full narrative every time. This
-    /// screen itself no longer pre-fills its editor with it -- a new case
-    /// always starts blank. Empty in Release builds -- never ships
-    /// clinical-sounding text anywhere.
-    static var debugSeedNarrative: String {
-        #if DEBUG
-        return "A 64-year-old male presents with an NSTEMI. Echocardiogram shows LVEF 35%, moderate mitral regurgitation, and mild aortic stenosis. He is an insulin-dependent diabetic, admitted yesterday. Cardiac catheterization shows three-vessel coronary artery disease: 90% proximal LAD stenosis, 70% stenosis of a large OM1 branch, and 100% occlusion of the RCA with good left-to-right collaterals to a moderate-sized PDA. He is currently asymptomatic on IV heparin and nitroglycerin. He is a Jehovah's Witness."
-        #else
-        return ""
-        #endif
-    }
-
     private static let analyzingMessages = [
         "Reading the case details…",
         "Identifying what's already known…",
