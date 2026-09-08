@@ -48,9 +48,9 @@ enum BackendError: LocalizedError, Equatable {
         case .server:
             return "Something went wrong. Please try again."
         case .network:
-            return "Heart Team Copilot couldn't reach the server. Check your connection and try again."
+            return "Heart Team Prep couldn't reach the server. Check your connection and try again."
         case .decoding:
-            return "Heart Team Copilot couldn't read the server's response. Please try again."
+            return "Heart Team Prep couldn't read the server's response. Please try again."
         }
     }
 

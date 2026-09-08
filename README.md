@@ -1,4 +1,4 @@
-# Heart Team Copilot
+# Heart Team Prep
 
 A native iOS app that helps cardiac surgery trainees prepare for the
 **heart team conference**: dictate or type a real case, answer a few

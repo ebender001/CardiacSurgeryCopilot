@@ -19,7 +19,7 @@ struct HiddenCaseIdsStore {
 
     init(namespace: String, defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        self.storageKey = "dev.benderapps.CardiacSurgeryCopilot.hiddenCaseIds.\(namespace)"
+        self.storageKey = "dev.benderapps.HeartTeamPrep.hiddenCaseIds.\(namespace)"
     }
 
     func all() -> Set<String> {

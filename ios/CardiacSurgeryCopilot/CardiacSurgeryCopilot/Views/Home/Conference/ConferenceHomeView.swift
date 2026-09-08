@@ -207,7 +207,7 @@ struct ConferenceHomeView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text("Heart Team Copilot")
+            Text("Heart Team Prep")
                 .font(.title2.weight(.bold))
                 .foregroundStyle(.primary)
             Text("Preoperative conference prep")

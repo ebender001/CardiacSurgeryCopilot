@@ -2,7 +2,7 @@
   "name": "cardiacsurgerycopilot-backend",
   "version": "1.0.0",
   "private": true,
-  "description": "Back4App Parse Cloud Code backend for the Cardiac Surgery Copilot app.",
+  "description": "Back4App Parse Cloud Code backend for the Heart Team Prep app.",
   "scripts": {
     "test": "jest",
     "test:watch": "jest --watch",

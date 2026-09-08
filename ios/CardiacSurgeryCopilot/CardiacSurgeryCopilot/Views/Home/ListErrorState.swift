@@ -47,7 +47,7 @@ struct ListErrorState: View {
 #Preview {
     ListErrorState(
         title: "Couldn't load Recent Cases",
-        message: "Heart Team Copilot couldn't reach the server. Check your connection and try again.",
+        message: "Heart Team Prep couldn't reach the server. Check your connection and try again.",
         onRetry: {}
     )
     .padding()

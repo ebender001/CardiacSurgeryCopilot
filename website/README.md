@@ -1,6 +1,6 @@
-# Heart Team Copilot Website
+# Heart Team Prep Website
 
-Public landing page for Heart Team Copilot. Static HTML/CSS/JS -- no
+Public landing page for Heart Team Prep. Static HTML/CSS/JS -- no
 build step, no framework, no npm packages.
 
 ```text

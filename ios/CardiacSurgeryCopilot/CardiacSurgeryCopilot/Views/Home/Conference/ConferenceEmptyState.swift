@@ -23,7 +23,7 @@ struct ConferenceEmptyState: View {
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(.primary)
 
-                Text("Start with a brief case summary. Heart Team Copilot will help you clarify the details and prepare a structured report for the heart team conference.")
+                Text("Start with a brief case summary. Heart Team Prep will help you clarify the details and prepare a structured report for the heart team conference.")
                     .font(.footnote)
                     .foregroundStyle(Color.slateText)
                     .fixedSize(horizontal: false, vertical: true)

@@ -56,7 +56,7 @@ final class SpeechRecognitionService: ObservableObject {
         var errorDescription: String? {
             switch self {
             case .notAuthorized:
-                return "Heart Team Copilot needs microphone and speech recognition access to dictate. You can enable this in Settings, or type instead."
+                return "Heart Team Prep needs microphone and speech recognition access to dictate. You can enable this in Settings, or type instead."
             case .recognizerUnavailable:
                 return "Dictation isn't available on this device right now. You can type instead."
             case .microphoneUnavailable:

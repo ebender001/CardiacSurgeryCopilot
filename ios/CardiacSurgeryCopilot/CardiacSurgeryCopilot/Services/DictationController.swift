@@ -194,15 +194,15 @@ final class DictationController: ObservableObject {
         let reason: String
         switch error as? BackendError {
         case .network:
-            reason = "Heart Team Copilot couldn't reach the server to double-check medical terms."
+            reason = "Heart Team Prep couldn't reach the server to double-check medical terms."
         case .decoding:
-            reason = "Heart Team Copilot couldn't read the server's response while checking medical terms."
+            reason = "Heart Team Prep couldn't read the server's response while checking medical terms."
         case .server, .invalidState, .notFound, .validation:
             reason = "The server couldn't check medical terms right now."
         case .sessionExpired:
             reason = "Your session expired, so medical terms couldn't be double-checked."
         case nil:
-            reason = "Heart Team Copilot couldn't double-check medical terms right now."
+            reason = "Heart Team Prep couldn't double-check medical terms right now."
         }
         return "\(reason) A quick on-device check was used instead."
     }

@@ -82,7 +82,7 @@ struct WelcomeView: View {
 
     private var header: some View {
         VStack(spacing: 4) {
-            Text("Heart Team Copilot")
+            Text("Heart Team Prep")
                 .font(.largeTitle.weight(.bold))
                 .foregroundStyle(.primary)
                 .multilineTextAlignment(.center)
