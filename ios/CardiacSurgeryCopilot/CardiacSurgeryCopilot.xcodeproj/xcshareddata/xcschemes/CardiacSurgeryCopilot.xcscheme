@@ -51,6 +51,9 @@
             ReferencedContainer = "container:CardiacSurgeryCopilot.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
+      <StoreKitConfigurationFileReference
+         identifier = "../../CardiacSurgeryCopilot/Subscriptions/HeartTeamPrep.storekit">
+      </StoreKitConfigurationFileReference>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"

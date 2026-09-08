@@ -144,6 +144,22 @@ enum BackendService {
         try await run(ListConferenceCasesFunction()).cases
     }
 
+    /// Whether the signed-in trainee qualifies for "Continue with Your
+    /// First Case" on the paywall (see PaywallViewModel) -- true only for
+    /// an account that has never created a case. Deliberately reuses
+    /// `listConferenceCases()` rather than a dedicated eligibility Cloud
+    /// Function: unlike MMCoach's device-based free-case tracking (which
+    /// needs its own persisted redemption flag to survive an account being
+    /// deleted and recreated), Heart Team Prep's eligibility is entirely a
+    /// function of this account's own case history, which the backend
+    /// already tracks -- there's nothing extra to persist. Note this reads
+    /// the *unfiltered* case list, not Recent Cases' locally-hidden view --
+    /// swiping a case away (see HiddenCaseIdsStore) never resets
+    /// eligibility, since the case still exists on the backend.
+    static func checkFreeCaseEligibility() async throws -> Bool {
+        try await listConferenceCases().isEmpty
+    }
+
     /// The case's three heart-team-member responses (surgeon,
     /// non-interventional cardiologist, interventional cardiologist),
     /// generated and cached server-side on first call. Only valid once

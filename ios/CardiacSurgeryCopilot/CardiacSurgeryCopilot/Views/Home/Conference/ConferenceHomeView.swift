@@ -41,7 +41,11 @@ struct ConferenceHomeView: View {
                         title: "Start a New Case",
                         subtitle: "Dictate or type a case for the heart team conference"
                     ) {
-                        path.append(.newCase)
+                        Task {
+                            if await viewModel.startNewCase() {
+                                path.append(.newCase)
+                            }
+                        }
                     }
                 }
                 .listRowSeparator(.hidden)
@@ -163,6 +167,36 @@ struct ConferenceHomeView: View {
             ) {
                 Button("Sign Out", role: .destructive, action: onSignOut)
                 Button("Cancel", role: .cancel) {}
+            }
+            .sheet(isPresented: $viewModel.isPresentingPaywall, onDismiss: {
+                // Runs after the sheet has actually finished closing, so
+                // this push never races the dismiss animation (see
+                // ConferenceHomeViewModel.paywallDidUnlockAccess()).
+                if viewModel.consumePaywallUnlock() {
+                    path.append(.newCase)
+                }
+            }) {
+                PaywallView {
+                    viewModel.paywallDidUnlockAccess()
+                }
+            }
+            .sheet(isPresented: $viewModel.isPresentingAIConsent, onDismiss: {
+                // Same race-avoidance pattern as the paywall above: resume
+                // startNewCase() only after the sheet has actually finished
+                // closing, and only if "I Agree" (not "Not Now"/swipe) is
+                // what closed it.
+                if viewModel.consumeAIConsentGranted() {
+                    Task {
+                        if await viewModel.startNewCase() {
+                            path.append(.newCase)
+                        }
+                    }
+                }
+            }) {
+                AIDataConsentView(
+                    onAgree: { viewModel.recordAIConsent() },
+                    onCancel: { viewModel.isPresentingAIConsent = false }
+                )
             }
             #if DEBUG
             .alert("Debug case failed", isPresented: debugErrorBinding) {
