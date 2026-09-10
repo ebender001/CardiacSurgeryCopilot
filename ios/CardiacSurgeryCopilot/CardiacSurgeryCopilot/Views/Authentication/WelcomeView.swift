@@ -43,7 +43,7 @@ struct WelcomeView: View {
 
                 actions
 
-                Text("By continuing, you agree to the [Terms of Use](\(LegalLinks.termsOfUse.absoluteString)) and [Privacy Policy](\(LegalLinks.privacyPolicy.absoluteString)).")
+                Text(legalAgreementText)
                     .font(.caption2)
                     .foregroundStyle(Color.slateText)
                     .multilineTextAlignment(.center)
@@ -152,6 +152,21 @@ struct WelcomeView: View {
         Rectangle()
             .fill(Color.primary.opacity(0.12))
             .frame(height: 1)
+    }
+
+    /// Built via `AttributedString(markdown:)` from a plain `String`,
+    /// NOT `Text("...\(url)...")` -- interpolating a URL directly into a
+    /// `Text` string literal treats it as an opaque `LocalizedStringKey`
+    /// format argument rather than literal markdown source, so the link
+    /// syntax never actually parses into a real `.link` attribute (it
+    /// renders as blue text that visually looks like a link, but taps
+    /// try to open the unresolved format placeholder itself and fail
+    /// with something like "Failed to open URL %25@"). Parsing the fully
+    /// resolved string here instead gives the markdown parser the real
+    /// URL text, producing a working link.
+    private var legalAgreementText: AttributedString {
+        let raw = "By continuing, you agree to the [Terms of Use](\(LegalLinks.termsOfUse.absoluteString)) and [Privacy Policy](\(LegalLinks.privacyPolicy.absoluteString))."
+        return (try? AttributedString(markdown: raw)) ?? AttributedString(raw)
     }
 }
 
