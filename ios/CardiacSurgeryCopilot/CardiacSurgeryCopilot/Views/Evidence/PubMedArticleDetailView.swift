@@ -77,8 +77,10 @@ struct PubMedArticleDetailView: View {
     }
 }
 
+#if DEBUG
 #Preview {
     NavigationStack {
         PubMedArticleDetailView(article: HeartTeamRoleEvidence.debugExample.pro.results[0])
     }
 }
+#endif

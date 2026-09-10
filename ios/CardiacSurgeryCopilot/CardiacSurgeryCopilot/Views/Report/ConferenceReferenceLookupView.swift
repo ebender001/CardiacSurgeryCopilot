@@ -113,6 +113,7 @@ struct ConferenceReferenceLookupView: View {
     }
 }
 
+#if DEBUG
 #Preview {
     NavigationStack {
         ConferenceReferenceLookupView(
@@ -129,3 +130,4 @@ struct ConferenceReferenceLookupView: View {
         )
     }
 }
+#endif
