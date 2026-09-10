@@ -26,9 +26,11 @@ struct RootView: View {
                     loadingView
                 case .signedOut:
                     WelcomeView(viewModel: authViewModel)
-                case .signedIn:
-                    ConferenceHomeView(onSignOut: {
+                case .signedIn(let user):
+                    ConferenceHomeView(currentUser: user, onSignOut: {
                         Task { await authViewModel.signOut() }
+                    }, onDeleteAccount: {
+                        try await authViewModel.deleteAccount()
                     })
                 }
             }

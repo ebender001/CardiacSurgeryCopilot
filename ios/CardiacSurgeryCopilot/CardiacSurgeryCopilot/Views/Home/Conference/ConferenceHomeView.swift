@@ -12,11 +12,23 @@ import SwiftUI
 struct ConferenceHomeView: View {
     @StateObject private var viewModel: ConferenceHomeViewModel
     @State private var path: [ConferenceRoute] = []
-    @State private var isConfirmingSignOut = false
+    @State private var isPresentingAccount = false
+    /// The signed-in user and an account-deletion action, supplied by
+    /// RootView -- optional (rather than a required non-Optional
+    /// `AuthenticatedUser`) so `ConferenceHomeView(onSignOut:)` keeps
+    /// working unchanged in previews/tests that don't care about the
+    /// account area. Mirrors MMCoach's HomeView.
+    let currentUser: AuthenticatedUser?
     let onSignOut: () -> Void
+    let onDeleteAccount: (() async throws -> Void)?
 
-    init(onSignOut: @escaping () -> Void, viewModel: ConferenceHomeViewModel? = nil) {
+    init(currentUser: AuthenticatedUser? = nil,
+         onSignOut: @escaping () -> Void,
+         onDeleteAccount: (() async throws -> Void)? = nil,
+         viewModel: ConferenceHomeViewModel? = nil) {
+        self.currentUser = currentUser
         self.onSignOut = onSignOut
+        self.onDeleteAccount = onDeleteAccount
         _viewModel = StateObject(wrappedValue: viewModel ?? ConferenceHomeViewModel())
     }
 
@@ -128,7 +140,7 @@ struct ConferenceHomeView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button {
-                        isConfirmingSignOut = true
+                        isPresentingAccount = true
                     } label: {
                         Image(systemName: "person.crop.circle")
                     }
@@ -140,13 +152,11 @@ struct ConferenceHomeView: View {
                     }
                 }
             }
-            .confirmationDialog(
-                "Sign Out",
-                isPresented: $isConfirmingSignOut,
-                titleVisibility: .visible
-            ) {
-                Button("Sign Out", role: .destructive, action: onSignOut)
-                Button("Cancel", role: .cancel) {}
+            .sheet(isPresented: $isPresentingAccount) {
+                AccountView(user: currentUser, onDeleteAccount: onDeleteAccount) {
+                    isPresentingAccount = false
+                    onSignOut()
+                }
             }
             .sheet(isPresented: $viewModel.isPresentingPaywall, onDismiss: {
                 // Runs after the sheet has actually finished closing, so
