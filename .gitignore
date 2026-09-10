@@ -32,6 +32,10 @@ backend/.parse.project
 # Local admin tools (personal scripts/credentials, not shared)
 admin-tools/
 
+# Contains real demo-account credentials for App Review -- repo is
+# public, this must never be committed.
+docs/app-review-notes.txt
+
 # Xcode
 ios/**/xcuserdata/
 ios/**/*.xcuserstate
