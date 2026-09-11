@@ -19,6 +19,8 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // Parse Android SDK is published via JitPack, not Maven Central.
+        maven { url = uri("https://jitpack.io") }
     }
 }
 
