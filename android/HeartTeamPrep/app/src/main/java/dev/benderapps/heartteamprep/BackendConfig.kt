@@ -17,4 +17,13 @@ object BackendConfig {
     // & Keys > "Client Key" (not the REST API Key, and not the Master Key).
     const val clientKey = "rLXlfRr1zJJfLMnAbeGSCvj7mqPUtHsmVNYJuLLs"
     val serverUrl: URL = URL("https://parseapi.back4app.com")
+
+    // TODO: fill in with a Google Cloud Console OAuth 2.0 "Web application"
+    // client ID (Credential Manager's Sign in with Google needs the *Web*
+    // client, not an Android one, as the ID token audience -- see
+    // https://developer.android.com/identity/sign-in/credential-manager-siwg-implementation).
+    // The same client ID must also be added to Back4App's dashboard under
+    // Server Settings > Sign-in with Google, the same way Apple's Services
+    // ID is configured there for Sign in with Apple.
+    const val googleWebClientId = ""
 }
