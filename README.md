@@ -25,6 +25,7 @@ reintroduced later without a schema migration.
 ```text
 CardiacSurgeryCopilot/
 ├── ios/                  # Native iOS/SwiftUI client (Xcode project)
+├── android/                # Native Android client (not yet started)
 ├── backend/               # Back4App Parse Cloud Code backend
 ├── website/                # Static marketing site (GitHub Pages)
 ├── docs/                    # Medical dictionaries, screenshots, notes
@@ -35,6 +36,7 @@ CardiacSurgeryCopilot/
   Parse schema, and deployment via the Back4App CLI (`b4a deploy`).
 - **Website**: see `website/README.md` for local dev and deploy.
 - **iOS**: see `ios/CardiacSurgeryCopilot/` — open the `.xcodeproj` in Xcode.
+- **Android**: see `android/` — not yet started.
 
 ## Status
 
