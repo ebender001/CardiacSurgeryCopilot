@@ -43,6 +43,13 @@ struct SubscriptionPlan: Identifiable, Equatable {
     /// always the real StoreKit price, never a hard-coded string. For the
     /// annual plan this is the annual total, not a monthly equivalent.
     let displayPrice: String
+    /// Human-readable length of this plan's free-trial introductory offer
+    /// (e.g. "3 days"), derived from `Product.subscription.introductoryOffer`
+    /// -- nil if App Store Connect has no free trial configured for this
+    /// product. Always sourced from StoreKit, never assumed: the paywall
+    /// must never claim a trial the configured product doesn't actually
+    /// have (see the Guideline 3.1.2(c) rejection this exists to satisfy).
+    let freeTrialDuration: String?
 }
 
 enum SubscriptionPurchaseOutcome: Equatable {

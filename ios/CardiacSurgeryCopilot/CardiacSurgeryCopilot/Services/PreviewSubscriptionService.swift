@@ -49,11 +49,13 @@ extension Array where Element == SubscriptionPlan {
         SubscriptionPlan(id: SubscriptionProductID.annual,
                           period: .annual,
                           displayName: "Heart Team Prep Annual",
-                          displayPrice: "$9.99"),
+                          displayPrice: "$9.99",
+                          freeTrialDuration: "3 days"),
         SubscriptionPlan(id: SubscriptionProductID.monthly,
                           period: .monthly,
                           displayName: "Heart Team Prep Monthly",
-                          displayPrice: "$1.99"),
+                          displayPrice: "$1.99",
+                          freeTrialDuration: "3 days"),
     ]
 }
 #endif

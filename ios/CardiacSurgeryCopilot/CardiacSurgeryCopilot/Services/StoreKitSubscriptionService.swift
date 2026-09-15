@@ -214,6 +214,31 @@ final class StoreKitSubscriptionService: SubscriptionService {
         return SubscriptionPlan(id: product.id,
                                  period: period,
                                  displayName: product.displayName,
-                                 displayPrice: product.displayPrice)
+                                 displayPrice: product.displayPrice,
+                                 freeTrialDuration: freeTrialDuration(for: product))
+    }
+
+    /// Reads the free-trial length directly off the product's App Store
+    /// Connect-configured introductory offer -- never hard-coded, so the
+    /// paywall can't claim a trial the product doesn't actually have (see
+    /// the Guideline 3.1.2(c) rejection this exists to satisfy). Returns
+    /// nil for anything other than a `.freeTrial` payment mode (e.g. a
+    /// pay-up-front or pay-as-you-go introductory price, which isn't a
+    /// free trial and shouldn't be described as one).
+    private static func freeTrialDuration(for product: Product) -> String? {
+        guard let offer = product.subscription?.introductoryOffer,
+              offer.paymentMode == .freeTrial else {
+            return nil
+        }
+        let count = offer.period.value
+        let unit: String
+        switch offer.period.unit {
+        case .day: unit = count == 1 ? "day" : "days"
+        case .week: unit = count == 1 ? "week" : "weeks"
+        case .month: unit = count == 1 ? "month" : "months"
+        case .year: unit = count == 1 ? "year" : "years"
+        @unknown default: unit = count == 1 ? "day" : "days"
+        }
+        return "\(count) \(unit)"
     }
 }

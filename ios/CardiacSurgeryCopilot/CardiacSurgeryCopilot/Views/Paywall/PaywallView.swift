@@ -5,8 +5,7 @@
 //  The subscription paywall, presented as a large-detent sheet when a
 //  non-subscribed trainee taps "Start a New Case" (see
 //  ConferenceHomeViewModel). Content order: header, benefits, subscription
-//  plans, first-free-case (only for a zero-case account), restore
-//  purchases, offer code, legal footer.
+//  plans, restore purchases, offer code, legal footer.
 //
 
 import StoreKit
@@ -41,9 +40,6 @@ struct PaywallView: View {
                     header
                     benefits
                     plansSection
-                    if viewModel.freeCaseEligibility == .eligible {
-                        freeCaseSection
-                    }
                     restoreSection
                     offerCodeSection
                     legalFooter
@@ -183,37 +179,10 @@ struct PaywallView: View {
                         .foregroundStyle(.red)
                 }
 
-                Text("Subscriptions automatically renew unless canceled.")
+                Text("Your free trial converts to a paid subscription at the price shown above unless canceled before it ends.")
                     .font(.caption)
                     .foregroundStyle(Color.slateText)
             }
-        }
-    }
-
-    // MARK: - First free case
-
-    private var freeCaseSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Divider().opacity(0.5)
-
-            Text("Your first complete case preparation is free.")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.primary)
-
-            Button {
-                Task { await viewModel.continueWithFreeCase() }
-            } label: {
-                HStack {
-                    if viewModel.state == .redeemingFreeCase {
-                        ProgressView()
-                    } else {
-                        Text("Continue with Your First Case")
-                    }
-                }
-                .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.copilotBordered)
-            .disabled(viewModel.isBusy)
         }
     }
 
@@ -295,27 +264,11 @@ struct PaywallView: View {
 }
 
 #if DEBUG
-#Preview("Ready, zero cases") {
+#Preview("Ready") {
     Color.warmBackground
         .sheet(isPresented: .constant(true)) {
             PaywallView(
-                viewModel: PaywallViewModel(
-                    subscriptionService: PreviewSubscriptionService(),
-                    fetchFreeCaseEligibility: { true }
-                ),
-                onUnlocked: {}
-            )
-        }
-}
-
-#Preview("Ready, existing cases (no free-case section)") {
-    Color.warmBackground
-        .sheet(isPresented: .constant(true)) {
-            PaywallView(
-                viewModel: PaywallViewModel(
-                    subscriptionService: PreviewSubscriptionService(),
-                    fetchFreeCaseEligibility: { false }
-                ),
+                viewModel: PaywallViewModel(subscriptionService: PreviewSubscriptionService()),
                 onUnlocked: {}
             )
         }
@@ -325,10 +278,7 @@ struct PaywallView: View {
     Color.warmBackground
         .sheet(isPresented: .constant(true)) {
             PaywallView(
-                viewModel: PaywallViewModel(
-                    subscriptionService: PreviewSubscriptionService(delay: .seconds(120)),
-                    fetchFreeCaseEligibility: { true }
-                ),
+                viewModel: PaywallViewModel(subscriptionService: PreviewSubscriptionService(delay: .seconds(120))),
                 onUnlocked: {}
             )
         }
@@ -341,21 +291,7 @@ struct PaywallView: View {
         .sheet(isPresented: .constant(true)) {
             PaywallView(
                 viewModel: PaywallViewModel(
-                    subscriptionService: PreviewSubscriptionService(plansResult: .failure(SubscriptionServiceError.productsUnavailable)),
-                    fetchFreeCaseEligibility: { true }
-                ),
-                onUnlocked: {}
-            )
-        }
-}
-
-#Preview("Free-case eligibility check failure (fails closed)") {
-    Color.warmBackground
-        .sheet(isPresented: .constant(true)) {
-            PaywallView(
-                viewModel: PaywallViewModel(
-                    subscriptionService: PreviewSubscriptionService(),
-                    fetchFreeCaseEligibility: { throw BackendError.network }
+                    subscriptionService: PreviewSubscriptionService(plansResult: .failure(SubscriptionServiceError.productsUnavailable))
                 ),
                 onUnlocked: {}
             )
@@ -366,10 +302,7 @@ struct PaywallView: View {
     Color.warmBackground
         .sheet(isPresented: .constant(true)) {
             PaywallView(
-                viewModel: PaywallViewModel(
-                    subscriptionService: PreviewSubscriptionService(),
-                    fetchFreeCaseEligibility: { true }
-                ),
+                viewModel: PaywallViewModel(subscriptionService: PreviewSubscriptionService()),
                 onUnlocked: {}
             )
         }

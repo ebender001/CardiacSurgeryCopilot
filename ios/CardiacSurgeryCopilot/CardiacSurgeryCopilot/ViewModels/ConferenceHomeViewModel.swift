@@ -74,8 +74,7 @@ final class ConferenceHomeViewModel: ObservableObject {
 
     /// Hides cases at the given offsets from this device's list (e.g. via
     /// swipe-to-delete/EditButton). Only a local, per-device preference --
-    /// the underlying case still exists on the backend, and still counts
-    /// toward free-case eligibility (see BackendService.checkFreeCaseEligibility).
+    /// the underlying case still exists on the backend.
     func deleteRecentCases(at offsets: IndexSet) {
         for index in offsets {
             hiddenCaseIds.hide(id: recentCases[index].id)

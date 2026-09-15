@@ -2,16 +2,9 @@
 //  PaywallViewModel.swift
 //  CardiacSurgeryCopilot
 //
-//  Drives PaywallView. Loads the configured subscription plans and the
-//  signed-in trainee's free-case eligibility in parallel, and owns the
-//  purchase/restore/free-case state machine. Views never call
-//  SubscriptionService or BackendService directly -- only this. Ported
-//  from MMCoach's PaywallViewModel, with one real difference: Heart Team
-//  Prep's free-case eligibility is account-based (see
-//  BackendService.checkFreeCaseEligibility), so there is no separate
-//  "redeem" network call -- proceeding to create the case *is* the
-//  redemption, since the account will never again show as eligible once
-//  it has a case.
+//  Drives PaywallView. Loads the configured subscription plans and owns
+//  the purchase/restore state machine. Views never call SubscriptionService
+//  directly -- only this. Ported from MMCoach's PaywallViewModel.
 //
 
 import Combine
@@ -27,11 +20,6 @@ enum PaywallState: Equatable {
     case ready
     case purchasing(productID: String)
     case restoring
-    /// Redeeming "Continue with Your First Case" -- a real network call
-    /// (re-confirming eligibility, see PaywallViewModel.continueWithFreeCase),
-    /// not an instant local flag flip, so it needs its own busy state like
-    /// purchasing/restoring do.
-    case redeemingFreeCase
     /// Waiting on the entitlement to catch up after the system offer-code
     /// redemption sheet (see PaywallView's `.offerCodeRedemption`) reports
     /// success -- see `offerCodeRedemptionCompleted(_:)`.
@@ -47,25 +35,13 @@ enum PaywallState: Equatable {
     case unableToLoadProducts
 }
 
-/// Whether the signed-in trainee qualifies for "Continue with Your First
-/// Case" -- backend-sourced, never assumed. `.unknown` is intentionally
-/// *not* a case here: a failed eligibility fetch fails closed to
-/// `.notEligible` (see `loadFreeCaseEligibility()`) rather than blocking
-/// the rest of the paywall on a retry.
-enum FreeCaseEligibility: Equatable {
-    case checking
-    case eligible
-    case notEligible
-}
-
 @MainActor
 final class PaywallViewModel: ObservableObject {
     @Published private(set) var state: PaywallState = .loadingProducts
     @Published private(set) var plans: [SubscriptionPlan] = []
-    @Published private(set) var freeCaseEligibility: FreeCaseEligibility = .checking
-    /// Flips to `true` once a purchase, a restore, or the free-case action
-    /// has confirmed the trainee should proceed. `PaywallView` observes
-    /// this to dismiss itself and continue to the new-case workflow.
+    /// Flips to `true` once a purchase or a restore has confirmed the
+    /// trainee should proceed. `PaywallView` observes this to dismiss
+    /// itself and continue to the new-case workflow.
     @Published private(set) var didUnlockAccess = false
 
     var sortedPlans: [SubscriptionPlan] {
@@ -76,7 +52,7 @@ final class PaywallViewModel: ObservableObject {
 
     var isBusy: Bool {
         switch state {
-        case .purchasing, .restoring, .redeemingFreeCase, .redeemingOfferCode:
+        case .purchasing, .restoring, .redeemingOfferCode:
             return true
         case .loadingProducts, .ready, .purchaseFailed, .restoreFailed, .unableToLoadProducts:
             return false
@@ -84,7 +60,6 @@ final class PaywallViewModel: ObservableObject {
     }
 
     private let subscriptionService: SubscriptionService
-    private let fetchFreeCaseEligibility: () async throws -> Bool
 
     /// Automatic retries after the initial product request fails or comes
     /// back empty: 1 initial attempt + 2 retries before giving up and
@@ -93,24 +68,17 @@ final class PaywallViewModel: ObservableObject {
     private static let retryDelay: Duration = .seconds(1.5)
     private var productLoadAttempt = 0
 
-    init(subscriptionService: SubscriptionService? = nil,
-         fetchFreeCaseEligibility: @escaping () async throws -> Bool = {
-             try await BackendService.checkFreeCaseEligibility()
-         }) {
+    init(subscriptionService: SubscriptionService? = nil) {
         self.subscriptionService = subscriptionService ?? StoreKitSubscriptionService.shared
-        self.fetchFreeCaseEligibility = fetchFreeCaseEligibility
     }
 
-    /// Loads plans and the free-case eligibility check together. Call once
-    /// from the sheet's `.task`, and again from the "Try Again" action on
-    /// `.unableToLoadProducts` -- both start a fresh retry sequence.
+    /// Loads the subscription plans. Call once from the sheet's `.task`,
+    /// and again from the "Try Again" action on `.unableToLoadProducts` --
+    /// both start a fresh retry sequence.
     func load() async {
         state = .loadingProducts
-        freeCaseEligibility = .checking
         productLoadAttempt = 0
-        async let plansResult: Void = attemptLoadPlans()
-        async let eligibilityResult: Void = loadFreeCaseEligibility()
-        _ = await (plansResult, eligibilityResult)
+        await attemptLoadPlans()
     }
 
     func purchase(_ plan: SubscriptionPlan) async {
@@ -175,34 +143,6 @@ final class PaywallViewModel: ObservableObject {
         }
     }
 
-    /// Only valid when `freeCaseEligibility == .eligible` -- the view only
-    /// shows this action in that state, but guard here too since this is
-    /// the actual access decision. Re-checks eligibility fresh against the
-    /// backend rather than trusting the earlier check alone -- that check
-    /// only decided whether to *show* this button, not whether it's still
-    /// safe to grant (the account could have created a case elsewhere,
-    /// e.g. on another device, in between). Unlike MMCoach's
-    /// `continueWithFreeCase()`, there's no separate redemption call to
-    /// make: eligibility here is just "this account has zero cases," so
-    /// proceeding to actually create the case is what makes the account
-    /// permanently ineligible going forward -- nothing else needs to be
-    /// written first.
-    func continueWithFreeCase() async {
-        guard freeCaseEligibility == .eligible, !isBusy else { return }
-        state = .redeemingFreeCase
-        do {
-            guard try await fetchFreeCaseEligibility() else {
-                freeCaseEligibility = .notEligible
-                state = .ready
-                return
-            }
-            didUnlockAccess = true
-            state = .ready
-        } catch {
-            state = .purchaseFailed(message: Self.message(for: error))
-        }
-    }
-
     /// Loads products, retrying automatically on failure or an empty
     /// result (both are treated as "unsuccessful" -- see
     /// `SubscriptionService.loadPlans()`) up to `maxProductLoadAttempts`
@@ -238,18 +178,6 @@ final class PaywallViewModel: ObservableObject {
             try? await Task.sleep(for: Self.retryDelay)
             guard !Task.isCancelled else { return }
             await attemptLoadPlans()
-        }
-    }
-
-    private func loadFreeCaseEligibility() async {
-        do {
-            let eligible = try await fetchFreeCaseEligibility()
-            freeCaseEligibility = eligible ? .eligible : .notEligible
-        } catch {
-            // Fail closed: if the backend can't confirm eligibility,
-            // don't offer the free-case path. Subscribing/restoring are
-            // unaffected by this failure.
-            freeCaseEligibility = .notEligible
         }
     }
 

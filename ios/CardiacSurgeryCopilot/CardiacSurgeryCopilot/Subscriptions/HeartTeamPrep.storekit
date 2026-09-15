@@ -76,7 +76,11 @@
           "familyShareable" : false,
           "groupNumber" : 1,
           "internalID" : "22135E5A55224D349F263B1A96B66978",
-          "introductoryOffer" : null,
+          "introductoryOffer" : {
+            "internalID" : "848C8C6E-7940-4ED1-BA4B-AD0D039AF7D6",
+            "paymentMode" : "free",
+            "subscriptionPeriod" : "P3D"
+          },
           "localizations" : [
             {
               "description" : "Unlimited case preparations, billed monthly.",
@@ -98,7 +102,11 @@
           "familyShareable" : false,
           "groupNumber" : 1,
           "internalID" : "3BF2A4966A354109B496ADFAD517D3C0",
-          "introductoryOffer" : null,
+          "introductoryOffer" : {
+            "internalID" : "E7037348-72A9-4856-87C2-8B86B3493E5F",
+            "paymentMode" : "free",
+            "subscriptionPeriod" : "P3D"
+          },
           "localizations" : [
             {
               "description" : "Unlimited case preparations, billed annually.",

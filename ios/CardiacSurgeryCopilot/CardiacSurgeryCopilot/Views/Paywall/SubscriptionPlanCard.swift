@@ -65,11 +65,21 @@ struct SubscriptionPlanCard: View {
         .accessibilityAddTraits(.isButton)
     }
 
-    private var priceLine: String {
+    private var billedPriceLine: String {
         switch plan.period {
         case .annual: "\(plan.displayPrice)/year"
         case .monthly: "\(plan.displayPrice)/month"
         }
+    }
+
+    /// The price line shown on the card. Whenever this plan has a free
+    /// trial, states both how long it lasts and the exact amount billed
+    /// once it ends -- never just the trial, and never just the price --
+    /// so the purchase flow itself discloses full billing terms up front
+    /// (see the Guideline 3.1.2(c) rejection this exists to satisfy).
+    private var priceLine: String {
+        guard let freeTrialDuration = plan.freeTrialDuration else { return billedPriceLine }
+        return "\(freeTrialDuration) free, then \(billedPriceLine)"
     }
 
     private var accessibilityLabel: String {
