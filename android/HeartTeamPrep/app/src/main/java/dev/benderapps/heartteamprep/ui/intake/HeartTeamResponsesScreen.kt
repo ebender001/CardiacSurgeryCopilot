@@ -5,6 +5,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -155,13 +158,16 @@ private fun HeartTeamRole.icon(): ImageVector = when (this) {
 
 @Composable
 private fun RoleSelector(selected: HeartTeamRole, colors: HeartTeamPrepColors, onSelect: (HeartTeamRole) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+    // IntrinsicSize.Min + fillMaxHeight keeps all three chips the same height
+    // even when one label wraps to a second line.
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
         HeartTeamRole.entries.forEach { role ->
             val isSelected = role == selected
             val content = if (isSelected) Color.White else colors.primaryText
             Column(
                 modifier = Modifier
                     .weight(1f)
+                    .fillMaxHeight()
                     .clip(RoundedCornerShape(14.dp))
                     .background(if (isSelected) colors.primary else colors.primaryTint)
                     .clickable { onSelect(role) }
@@ -171,7 +177,9 @@ private fun RoleSelector(selected: HeartTeamRole, colors: HeartTeamPrepColors, o
             ) {
                 Icon(role.icon(), contentDescription = null, tint = content)
                 Text(
-                    role.shortName,
+                    // A zero-width space after the hyphen lets "Non-Interventional" wrap there
+                    // instead of mid-word.
+                    role.shortName.replace("-", "-\u200B"),
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
                     color = content,
                     textAlign = TextAlign.Center
