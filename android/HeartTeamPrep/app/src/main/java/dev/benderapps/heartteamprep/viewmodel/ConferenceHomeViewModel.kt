@@ -10,17 +10,19 @@ import dev.benderapps.heartteamprep.service.AIDataConsentStore
 import dev.benderapps.heartteamprep.service.BackendError
 import dev.benderapps.heartteamprep.service.BackendService
 import dev.benderapps.heartteamprep.service.HiddenCaseIdsStore
+import dev.benderapps.heartteamprep.service.PlayBillingSubscriptionService
+import dev.benderapps.heartteamprep.service.SubscriptionService
 import kotlinx.coroutines.launch
 
 /**
  * Drives the home screen's recent-cases list and the AI-data-consent gate
- * in front of "Start a New Case". Mirrors the iOS `ConferenceHomeViewModel`.
- * (The subscription gate that iOS also applies there arrives with Play
- * Billing support.)
+ * and subscription gates in front of "Start a New Case". Mirrors the iOS
+ * `ConferenceHomeViewModel`.
  */
 class ConferenceHomeViewModel(
     private val hiddenCaseIds: HiddenCaseIdsStore = HiddenCaseIdsStore(namespace = "conference"),
-    private val aiConsentStore: AIDataConsentStore = AIDataConsentStore()
+    private val aiConsentStore: AIDataConsentStore = AIDataConsentStore(),
+    private val subscriptionService: SubscriptionService = PlayBillingSubscriptionService
 ) : ViewModel() {
 
     var recentCases: List<ConferenceCaseSummary> by mutableStateOf(emptyList())
@@ -67,19 +69,31 @@ class ConferenceHomeViewModel(
         recentCases = recentCases.filterNot { it.id == id }
     }
 
+    var isPresentingPaywall: Boolean by mutableStateOf(false)
+    private var isCheckingCaseAccess = false
+
     /**
      * The gate behind "Start a New Case": the AI-data-consent disclosure
      * comes first, since it governs whether case content may be sent
-     * anywhere at all. Returns whether the caller should open the New Case
-     * screen now.
+     * anywhere at all; then an active subscriber proceeds and everyone else
+     * sees the paywall. Entitlement is re-checked against Play every time.
+     * [onProceed] runs only when the caller should open the New Case screen.
      */
-    fun startNewCase(): Boolean {
-        if (isPresentingAIConsent) return false
+    fun startNewCase(onProceed: () -> Unit) {
+        if (isCheckingCaseAccess || isPresentingPaywall || isPresentingAIConsent) return
         if (!aiConsentStore.hasConsented) {
             isPresentingAIConsent = true
-            return false
+            return
         }
-        return true
+        isCheckingCaseAccess = true
+        viewModelScope.launch {
+            val subscribed = try {
+                subscriptionService.hasActiveEntitlement()
+            } finally {
+                isCheckingCaseAccess = false
+            }
+            if (subscribed) onProceed() else isPresentingPaywall = true
+        }
     }
 
     /** Records consent and closes the disclosure; the caller then re-runs [startNewCase]. */

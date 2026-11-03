@@ -21,10 +21,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import dev.benderapps.heartteamprep.model.AuthenticatedUser
 import dev.benderapps.heartteamprep.ui.components.PrimaryButton
 import dev.benderapps.heartteamprep.ui.theme.heartTeamPrepColors
+
+private const val MANAGE_SUBSCRIPTIONS_URL = "https://play.google.com/store/account/subscriptions"
 
 /**
  * Account details with sign-out and permanent account deletion (required by
@@ -39,6 +42,7 @@ fun AccountSheet(
     onDeleteAccount: ((String) -> Unit) -> Unit
 ) {
     val colors = heartTeamPrepColors()
+    val uriHandler = LocalUriHandler.current
     var isConfirmingSignOut by remember { mutableStateOf(false) }
     var isConfirmingDelete by remember { mutableStateOf(false) }
     var isDeleting by remember { mutableStateOf(false) }
@@ -57,6 +61,11 @@ fun AccountSheet(
             Text("Signed in with email", style = MaterialTheme.typography.bodySmall, color = colors.slateText)
 
             Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = { uriHandler.openUri(MANAGE_SUBSCRIPTIONS_URL) },
+                modifier = Modifier.fillMaxWidth().height(50.dp),
+                shape = RoundedCornerShape(14.dp)
+            ) { Text("Manage Subscription") }
             PrimaryButton(text = "Sign Out", onClick = { isConfirmingSignOut = true }, enabled = !isDeleting)
 
             OutlinedButton(
@@ -69,7 +78,7 @@ fun AccountSheet(
             }
 
             Text(
-                "Permanently deletes your account and every case you've prepared. This cannot be undone.",
+                "Permanently deletes your account and every case you've prepared. This cannot be undone. It does not cancel an active subscription -- use Manage Subscription above.",
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.slateText
             )
@@ -94,7 +103,7 @@ fun AccountSheet(
         AlertDialog(
             onDismissRequest = { isConfirmingDelete = false },
             title = { Text("Delete account?") },
-            text = { Text("This permanently deletes your account and every case you've prepared. This can't be undone.") },
+            text = { Text("This permanently deletes your account and every case you've prepared. It does not cancel any active subscription -- Google Play will keep billing you unless you cancel it separately. This can't be undone.") },
             confirmButton = {
                 TextButton(onClick = {
                     isConfirmingDelete = false

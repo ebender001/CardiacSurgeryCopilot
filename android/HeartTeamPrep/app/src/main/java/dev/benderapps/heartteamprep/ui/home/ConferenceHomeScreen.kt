@@ -109,7 +109,7 @@ fun ConferenceHomeScreen(
                         title = "Start a New Case",
                         subtitle = "Type a case summary for the heart team conference",
                         colors = colors,
-                        onClick = { if (viewModel.startNewCase()) onNewCase() }
+                        onClick = { viewModel.startNewCase(onNewCase) }
                     )
                 }
 
@@ -160,11 +160,21 @@ fun ConferenceHomeScreen(
         AIDataConsentScreen(
             onAgree = {
                 viewModel.recordAIConsent()
-                // Consent was the only thing standing in the way -- carry on
-                // into the New Case screen rather than making them tap again.
-                if (viewModel.startNewCase()) onNewCase()
+                // Consent was the only thing standing in the way -- carry on to
+                // the subscription check rather than making them tap again.
+                viewModel.startNewCase(onNewCase)
             },
             onCancel = { viewModel.isPresentingAIConsent = false }
+        )
+    }
+
+    if (viewModel.isPresentingPaywall) {
+        PaywallSheet(
+            onUnlocked = {
+                viewModel.isPresentingPaywall = false
+                onNewCase()
+            },
+            onDismiss = { viewModel.isPresentingPaywall = false }
         )
     }
 
