@@ -16,9 +16,10 @@ const DEFAULT_TIMEOUT_MS = 15000;
  * Higher than a typical retry budget because NCBI's unauthenticated rate
  * limit (3 requests/second/IP -- see identificationParams()'s optional
  * PUBMED_API_KEY, which raises this to 10/sec if ever configured) is easy
- * to burst past: a single evidence request now fires up to four esearch
- * calls (pro/con, each with its own empty-result fallback -- see
- * conferenceCaseService.findEvidenceWithFallback), and Back4App's shared
+ * to burst past: a single evidence request can fire up to six esearch
+ * calls (pro/con, each with its own empty-result fallback and its own
+ * older-article top-up -- see conferenceCaseService.findEvidenceWithFallback
+ * and topUpWithOlder), and Back4App's shared
  * function pool means other cases/users can be hitting NCBI from the same
  * IP concurrently. Paired with retryDelayMs's backoff below.
  */
