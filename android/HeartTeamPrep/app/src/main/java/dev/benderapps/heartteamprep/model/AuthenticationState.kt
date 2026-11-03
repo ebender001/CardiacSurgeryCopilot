@@ -8,11 +8,8 @@ package dev.benderapps.heartteamprep.model
 data class AuthenticatedUser(
     val id: String,
     val email: String?,
-    val isEmailVerified: Boolean,
-    val signInMethod: SignInMethod
-) {
-    enum class SignInMethod { EMAIL, GOOGLE }
-}
+    val isEmailVerified: Boolean
+)
 
 sealed interface AuthenticationState {
     /** The app hasn't yet checked whether a persisted session exists. */

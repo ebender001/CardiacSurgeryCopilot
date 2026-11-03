@@ -20,7 +20,6 @@ interface AuthenticationService {
 
     suspend fun signUp(email: String, password: String): AuthenticatedUser
     suspend fun signIn(email: String, password: String): AuthenticatedUser
-    suspend fun signInWithGoogle(credential: GoogleSignInCredential): AuthenticatedUser
 
     /**
      * Always succeeds from the caller's point of view (matches Parse

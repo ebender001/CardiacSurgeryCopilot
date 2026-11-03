@@ -1,6 +1,5 @@
 package dev.benderapps.heartteamprep.viewmodel
 
-import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -10,9 +9,6 @@ import dev.benderapps.heartteamprep.model.AuthenticationState
 import dev.benderapps.heartteamprep.model.EmailAuthMode
 import dev.benderapps.heartteamprep.service.AuthenticationService
 import dev.benderapps.heartteamprep.service.AuthenticationServiceError
-import dev.benderapps.heartteamprep.service.GoogleSignInCredentialExtracting
-import dev.benderapps.heartteamprep.service.GoogleSignInError
-import dev.benderapps.heartteamprep.service.GoogleSignInService
 import dev.benderapps.heartteamprep.service.ParseAuthenticationService
 import kotlinx.coroutines.launch
 
@@ -20,20 +16,14 @@ import kotlinx.coroutines.launch
  * Drives every authentication screen (Welcome, EmailAuthScreen,
  * PasswordResetScreen) and the app-root decision between them and the
  * signed-in app (see AppRoot). Screens only ever call this -- never
- * AuthenticationService/GoogleSignInService/Parse directly.
+ * AuthenticationService/Parse directly.
  */
 class AuthenticationViewModel(
-    private val authService: AuthenticationService = ParseAuthenticationService(),
-    private val googleSignIn: GoogleSignInCredentialExtracting = GoogleSignInService()
+    private val authService: AuthenticationService = ParseAuthenticationService()
 ) : ViewModel() {
 
     var state: AuthenticationState by mutableStateOf(AuthenticationState.CheckingSession)
         private set
-
-    // Sign in with Google
-    var isGoogleSignInInProgress: Boolean by mutableStateOf(false)
-        private set
-    var googleSignInErrorMessage: String? by mutableStateOf(null)
 
     // Email sign-in/create-account form
     var emailMode: EmailAuthMode by mutableStateOf(EmailAuthMode.SIGN_IN)
@@ -70,29 +60,6 @@ class AuthenticationViewModel(
     fun refreshSession() {
         val user = authService.currentUser()
         state = if (user != null) AuthenticationState.SignedIn(user) else AuthenticationState.SignedOut
-    }
-
-    // MARK: - Sign in with Google
-
-    fun signInWithGoogle(context: Context) {
-        if (isGoogleSignInInProgress) return
-        googleSignInErrorMessage = null
-        viewModelScope.launch {
-            isGoogleSignInInProgress = true
-            try {
-                val credential = googleSignIn.credential(context)
-                val user = authService.signInWithGoogle(credential)
-                state = AuthenticationState.SignedIn(user)
-            } catch (e: GoogleSignInError.Cancelled) {
-                // The person dismissed the account picker -- not an error.
-            } catch (e: AuthenticationServiceError) {
-                googleSignInErrorMessage = e.userMessage
-            } catch (e: Exception) {
-                googleSignInErrorMessage = "Sign in with Google didn't complete. Please try again."
-            } finally {
-                isGoogleSignInInProgress = false
-            }
-        }
     }
 
     // MARK: - Email / password

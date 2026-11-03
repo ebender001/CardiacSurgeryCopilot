@@ -38,43 +38,6 @@ class ParseAuthenticationService : AuthenticationService {
             throw AuthenticationServiceError.Network
         }
 
-    override suspend fun signInWithGoogle(credential: GoogleSignInCredential): AuthenticatedUser {
-        val authData = mapOf("id" to credential.id, "id_token" to credential.idToken)
-        return try {
-            val loggedIn = ParseUser.logInWithInBackground("google", authData).await()
-            var needsSave = false
-
-            // Parse Server already links repeat sign-ins by the identity
-            // baked into authData -- this field is an explicit, directly
-            // queryable record of the same id (the Android SDK doesn't
-            // expose authData for reads, unlike Parse-Swift), which is
-            // also what `toAuthenticatedUser` below uses to tell a
-            // Google-linked account apart from an email/password one.
-            if (loggedIn.getString(GOOGLE_USER_IDENTIFIER_KEY) != credential.id) {
-                loggedIn.put(GOOGLE_USER_IDENTIFIER_KEY, credential.id)
-                needsSave = true
-            }
-
-            // Parse Server's "google" adapter doesn't persist the email
-            // from the ID token onto the User itself -- persist it the one
-            // time it's missing rather than leaving it unset.
-            if (loggedIn.email == null && credential.email != null) {
-                loggedIn.email = credential.email
-                needsSave = true
-            }
-
-            if (needsSave) {
-                loggedIn.saveInBackground().await()
-            }
-
-            loggedIn.toAuthenticatedUser()
-        } catch (e: ParseException) {
-            throw map(e)
-        } catch (e: Exception) {
-            throw AuthenticationServiceError.Network
-        }
-    }
-
     override suspend fun sendPasswordReset(email: String) {
         try {
             ParseUser.requestPasswordResetInBackground(email).await()
@@ -132,15 +95,8 @@ class ParseAuthenticationService : AuthenticationService {
     }
 }
 
-private const val GOOGLE_USER_IDENTIFIER_KEY = "googleUserIdentifier"
-
 private fun ParseUser.toAuthenticatedUser() = AuthenticatedUser(
     id = objectId ?: "",
     email = email,
-    isEmailVerified = getBoolean("emailVerified"),
-    signInMethod = if (getString(GOOGLE_USER_IDENTIFIER_KEY).isNullOrEmpty()) {
-        AuthenticatedUser.SignInMethod.EMAIL
-    } else {
-        AuthenticatedUser.SignInMethod.GOOGLE
-    }
+    isEmailVerified = getBoolean("emailVerified")
 )
