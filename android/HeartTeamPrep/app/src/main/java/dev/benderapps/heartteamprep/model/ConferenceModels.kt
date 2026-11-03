@@ -279,6 +279,21 @@ data class HeartTeamResponses(
     }
 }
 
+/** Result of `cscCorrectDictation` -- the segment with medical terms corrected, plus what changed. */
+data class CorrectedDictationSegment(val correctedSegment: String, val changes: List<Change>) {
+    data class Change(val original: String, val corrected: String)
+
+    companion object {
+        fun fromMap(map: Map<*, *>) = CorrectedDictationSegment(
+            correctedSegment = map.string("correctedSegment"),
+            changes = map.list("changes").map {
+                val change = it.asMap()
+                Change(original = change.string("original"), corrected = change.string("corrected"))
+            }
+        )
+    }
+}
+
 // MARK: - Map helpers
 
 internal fun Any?.asMap(): Map<*, *> = this as? Map<*, *> ?: throw BackendDecodingException("Expected an object")

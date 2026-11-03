@@ -4,6 +4,17 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- Dictation is optional: the app is fully usable by typing on a device without a mic. -->
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+
+    <!-- Package visibility (API 30+): lets the system find on-device speech recognition services. -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
 
     <application
         android:name=".HeartTeamPrepApplication"

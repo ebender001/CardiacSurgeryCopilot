@@ -3,6 +3,7 @@ package dev.benderapps.heartteamprep
 import android.app.Application
 import android.util.Log
 import com.parse.Parse
+import dev.benderapps.heartteamprep.service.BeepSuppressor
 import dev.benderapps.heartteamprep.service.PHIFilterService
 
 class HeartTeamPrepApplication : Application() {
@@ -15,6 +16,9 @@ class HeartTeamPrepApplication : Application() {
                 .server(BackendConfig.serverUrl.toString())
                 .build()
         )
+
+        // A mute left behind by a run killed mid-dictation would otherwise outlive it.
+        BeepSuppressor.restoreIfLeftMuted()
 
         // Loading the PHI models takes about a second -- do it now, off the
         // main thread, so the first case submission doesn't wait on it.

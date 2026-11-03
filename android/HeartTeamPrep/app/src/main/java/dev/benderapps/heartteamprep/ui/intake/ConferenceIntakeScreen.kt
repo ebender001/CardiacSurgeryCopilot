@@ -6,22 +6,19 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import dev.benderapps.heartteamprep.model.ConferenceCase
 import dev.benderapps.heartteamprep.ui.components.AnalyzingOverlay
+import dev.benderapps.heartteamprep.ui.components.DictationDialogs
+import dev.benderapps.heartteamprep.ui.components.DictationEditor
 import dev.benderapps.heartteamprep.ui.components.HeartTeamScreen
 import dev.benderapps.heartteamprep.ui.components.PrimaryButton
 import dev.benderapps.heartteamprep.ui.components.polishedCard
@@ -68,18 +65,13 @@ fun ConferenceIntakeScreen(
                         modifier = Modifier.weight(1f).polishedCard(),
                         verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        Text("Type the case summary.", style = MaterialTheme.typography.bodySmall, color = colors.slateText)
-                        OutlinedTextField(
-                            value = viewModel.narrativeText,
-                            onValueChange = { viewModel.narrativeText = it },
-                            placeholder = { Text("A 64-year-old man presents with an NSTEMI…") },
+                        Text("Dictate or type — whichever is easier.", style = MaterialTheme.typography.bodySmall, color = colors.slateText)
+                        DictationEditor(
+                            text = viewModel.narrativeText,
+                            onTextChange = { viewModel.narrativeText = it },
+                            dictation = viewModel.dictation,
+                            placeholder = "A 64-year-old man presents with an NSTEMI…",
                             enabled = !viewModel.isSubmitting,
-                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                                focusedContainerColor = MaterialTheme.colorScheme.surface
-                            ),
                             modifier = Modifier.fillMaxWidth().weight(1f)
                         )
                     }
@@ -106,6 +98,8 @@ fun ConferenceIntakeScreen(
             }
         }
     }
+
+    DictationDialogs(viewModel.dictation)
 
     viewModel.phiNoticeMessage?.let { message ->
         AlertDialog(

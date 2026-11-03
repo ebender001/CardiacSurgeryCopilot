@@ -8,8 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Description
@@ -21,8 +19,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -34,11 +30,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import dev.benderapps.heartteamprep.model.ConferenceConversationEntry
 import dev.benderapps.heartteamprep.model.ConferenceQuestion
 import dev.benderapps.heartteamprep.ui.components.CenteredLoading
+import dev.benderapps.heartteamprep.ui.components.DictationDialogs
+import dev.benderapps.heartteamprep.ui.components.DictationEditor
 import dev.benderapps.heartteamprep.ui.components.HeartTeamScreen
 import dev.benderapps.heartteamprep.ui.components.ListErrorState
 import dev.benderapps.heartteamprep.ui.components.NeutralBadge
@@ -149,6 +146,8 @@ fun ConferenceInterviewScreen(
         )
     }
 
+    DictationDialogs(viewModel.dictation)
+
     viewModel.phiNoticeMessage?.let { message ->
         AlertDialog(
             onDismissRequest = { viewModel.phiNoticeMessage = null },
@@ -175,17 +174,12 @@ private fun InterviewContent(viewModel: ConferenceInterviewViewModel, question: 
                 Text(question.reason, style = MaterialTheme.typography.bodySmall, color = colors.slateText)
             }
 
-            OutlinedTextField(
-                value = viewModel.answerText,
-                onValueChange = { viewModel.answerText = it },
-                placeholder = { Text("Answer as you would explain it out loud…") },
+            DictationEditor(
+                text = viewModel.answerText,
+                onTextChange = { viewModel.answerText = it },
+                dictation = viewModel.dictation,
+                placeholder = "Answer as you would explain it out loud…",
                 enabled = !viewModel.isSubmittingAnswer,
-                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                    focusedContainerColor = MaterialTheme.colorScheme.surface
-                ),
                 modifier = Modifier.fillMaxWidth().weight(1f)
             )
         }

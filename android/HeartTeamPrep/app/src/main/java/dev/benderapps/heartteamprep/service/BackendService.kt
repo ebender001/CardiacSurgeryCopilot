@@ -5,6 +5,7 @@ import com.parse.ParseException
 import dev.benderapps.heartteamprep.model.BackendDecodingException
 import dev.benderapps.heartteamprep.model.ConferenceCase
 import dev.benderapps.heartteamprep.model.ConferenceCaseSummary
+import dev.benderapps.heartteamprep.model.CorrectedDictationSegment
 import dev.benderapps.heartteamprep.model.HeartTeamResponses
 import dev.benderapps.heartteamprep.model.HeartTeamRole
 import dev.benderapps.heartteamprep.model.HeartTeamRoleEvidence
@@ -105,6 +106,19 @@ object BackendService {
     suspend fun getHeartTeamRoleEvidence(caseId: String, role: HeartTeamRole): HeartTeamRoleEvidence =
         run("cscGetHeartTeamRoleEvidence", mapOf("caseId" to caseId, "role" to role.raw)) {
             HeartTeamRoleEvidence.fromMap(it.asMap())
+        }
+
+    /**
+     * Corrects one freshly-dictated segment (medical terminology). [priorNarrative]
+     * is context for disambiguation only -- the backend doesn't re-edit it, so
+     * only the returned segment should be appended locally. Callers must have
+     * PHI-screened both arguments first. Mirrors the backend's
+     * `cscCorrectDictation`, which isn't gated by a session (dictation correction
+     * has no per-user data).
+     */
+    suspend fun correctDictation(priorNarrative: String, newSegment: String): CorrectedDictationSegment =
+        run("cscCorrectDictation", mapOf("priorNarrative" to priorNarrative, "newSegment" to newSegment)) {
+            CorrectedDictationSegment.fromMap(it.asMap())
         }
 
     private suspend fun <T> run(function: String, params: Map<String, Any>, decode: (Any?) -> T): T {

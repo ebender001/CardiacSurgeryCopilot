@@ -5,11 +5,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.parse.Parse
 import dev.benderapps.heartteamprep.model.ConferenceCase
 import dev.benderapps.heartteamprep.model.ConferenceCaseStatus
 import dev.benderapps.heartteamprep.model.ConferenceQuestion
 import dev.benderapps.heartteamprep.service.BackendError
 import dev.benderapps.heartteamprep.service.BackendService
+import dev.benderapps.heartteamprep.service.DictationController
+import dev.benderapps.heartteamprep.service.DictationVocabulary
+import dev.benderapps.heartteamprep.service.OnDeviceSpeechEngine
 import dev.benderapps.heartteamprep.service.PHIFilterService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -37,6 +41,12 @@ class ConferenceInterviewViewModel(
     var currentQuestion: ConferenceQuestion? by mutableStateOf(initialCase?.nextQuestion)
         private set
     var answerText: String by mutableStateOf("")
+
+    /** Mic dictation into [answerText]; the result is appended via [DictationController.onCorrectedText]. */
+    val dictation = DictationController(
+        engine = OnDeviceSpeechEngine(Parse.getApplicationContext(), DictationVocabulary.contextualStringSeed),
+        scope = viewModelScope
+    ).also { controller -> controller.onCorrectedText = { answerText = it } }
     var isLoadingCase: Boolean by mutableStateOf(initialCase == null)
         private set
     var isSubmittingAnswer: Boolean by mutableStateOf(false)
@@ -51,7 +61,7 @@ class ConferenceInterviewViewModel(
         get() = !isLoadingCase && currentQuestion == null && errorMessage == null
 
     val canSubmitAnswer: Boolean
-        get() = !isSubmittingAnswer && !isSkippingRemainingQuestions && answerText.isNotBlank()
+        get() = !isSubmittingAnswer && !isSkippingRemainingQuestions && !dictation.isDictating && answerText.isNotBlank()
 
     init {
         if (initialCase == null) loadCase()
@@ -135,6 +145,10 @@ class ConferenceInterviewViewModel(
         status = result.status
         originalNarrative = result.originalNarrative
         currentQuestion = result.nextQuestion
+    }
+
+    override fun onCleared() {
+        dictation.release()
     }
 
     private fun message(e: Exception) = (e as? BackendError)?.userMessage ?: "Something went wrong. Please try again."
