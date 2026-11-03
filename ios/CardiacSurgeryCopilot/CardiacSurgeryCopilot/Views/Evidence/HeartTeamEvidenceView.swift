@@ -4,9 +4,10 @@
 //
 //  Reached from HeartTeamResponsesView's "Evidence" button. Two sections
 //  -- evidence supporting the selected role's recommendation, and
-//  evidence favoring an alternative to it -- each restricted server-side
-//  to the last 10 years (see backend/README.md). Either section (or
-//  both) may legitimately be empty; no citation is ever fabricated.
+//  evidence favoring an alternative to it -- each searched server-side
+//  within the last 10 years first, then topped up with older articles only
+//  if fewer turn up (see backend/README.md). Either section (or both) may
+//  legitimately be empty; no citation is ever fabricated.
 //
 
 import SwiftUI
@@ -25,7 +26,7 @@ struct HeartTeamEvidenceView: View {
     private static let loadingMessages = [
         "Searching PubMed for supporting evidence…",
         "Searching PubMed for opposing evidence…",
-        "Filtering to the last 10 years…"
+        "Searching recent literature…"
     ]
 
     var body: some View {
@@ -66,7 +67,7 @@ struct HeartTeamEvidenceView: View {
     private func evidenceList(_ evidence: HeartTeamRoleEvidence) -> some View {
         List {
             Section {
-                Text("Literature for and against the \(role.displayName.lowercased())'s recommendation, limited to the last 10 years.")
+                Text("Literature for and against the \(role.displayName.lowercased())'s recommendation, favoring the last 10 years.")
                     .font(.subheadline)
                     .foregroundStyle(Color.slateText)
             }
@@ -90,7 +91,7 @@ struct HeartTeamEvidenceView: View {
     private func evidenceSection(title: String, articles: [PubMedArticle]) -> some View {
         Section {
             if articles.isEmpty {
-                Text("No matching articles found in the last 10 years.")
+                Text("No matching articles found.")
                     .font(.footnote)
                     .foregroundStyle(Color.slateText)
                     .listRowBackground(Color.clear)

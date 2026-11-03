@@ -35,7 +35,7 @@ import dev.benderapps.heartteamprep.viewmodel.HeartTeamEvidenceViewModel
 private val evidenceLoadingMessages = listOf(
     "Searching PubMed for supporting evidence…",
     "Searching PubMed for opposing evidence…",
-    "Filtering to the last 10 years…"
+    "Searching recent literature…"
 )
 
 /** One role's pro/con PubMed evidence for its stated recommendation. */
@@ -60,7 +60,7 @@ fun HeartTeamEvidenceScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Text(
-                        "Literature for and against the ${roleName.lowercase()}'s recommendation, limited to the last 10 years.",
+                        "Literature for and against the ${roleName.lowercase()}'s recommendation, favoring the last 10 years.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = colors.slateText
                     )
@@ -90,7 +90,7 @@ private fun EvidenceSection(title: String, articles: List<PubMedArticle>, onOpen
         Text(title, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold), color = colors.primaryText)
         if (articles.isEmpty()) {
             Text(
-                "No matching articles found in the last 10 years.",
+                "No matching articles found.",
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.slateText
             )

@@ -545,9 +545,10 @@ describe('getRoleEvidence', () => {
     referenceQueryBuilder.buildQuery
       .mockResolvedValueOnce({ query: 'CABG three-vessel[tiab]', meta: { model: 'gpt-test', usage: { prompt_tokens: 10, completion_tokens: 5 } }, promptVersion: '1.0.0' })
       .mockResolvedValueOnce({ query: 'PCI multivessel[tiab]', meta: { model: 'gpt-test', usage: { prompt_tokens: 10, completion_tokens: 5 } }, promptVersion: '1.0.0' });
+    const full = (pmid, title) => Array.from({ length: 5 }, (_, i) => ({ pmid: `${pmid}${i}`, title: `${title} ${i}` }));
     pubmedService.findReferences
-      .mockResolvedValueOnce([{ pmid: '111', title: 'CABG outcomes' }])
-      .mockResolvedValueOnce([{ pmid: '222', title: 'PCI outcomes' }]);
+      .mockResolvedValueOnce(full('1', 'CABG outcomes'))
+      .mockResolvedValueOnce(full('2', 'PCI outcomes'));
 
     const result = await conferenceCaseService.getRoleEvidence({ caseId: 'case1', ownerId: 'user1', role: 'surgeon' });
 
@@ -556,9 +557,11 @@ describe('getRoleEvidence', () => {
     expect(pubmedService.findReferences).toHaveBeenNthCalledWith(1, { query: 'CABG three-vessel[tiab]', maxResults: 5, minYear: expectedMinYear });
     expect(pubmedService.findReferences).toHaveBeenNthCalledWith(2, { query: 'PCI multivessel[tiab]', maxResults: 5, minYear: expectedMinYear });
     expect(result).toEqual({
-      pro: { query: 'CABG three-vessel[tiab]', results: [{ pmid: '111', title: 'CABG outcomes' }] },
-      con: { query: 'PCI multivessel[tiab]', results: [{ pmid: '222', title: 'PCI outcomes' }] },
+      pro: { query: 'CABG three-vessel[tiab]', results: full('1', 'CABG outcomes') },
+      con: { query: 'PCI multivessel[tiab]', results: full('2', 'PCI outcomes') },
     });
+    // A full list inside the window never triggers the older-article top-up.
+    expect(pubmedService.findReferences).toHaveBeenCalledTimes(2);
     expect(conferenceCaseRepository.update).toHaveBeenCalledWith('case1', {
       heartTeamEvidence: { surgeon: result },
     });
@@ -571,10 +574,13 @@ describe('getRoleEvidence', () => {
       .mockResolvedValueOnce({ query: 'overly[tiab] AND narrow[tiab] AND query[tiab]', meta: { model: 'gpt-test', usage: { prompt_tokens: 10, completion_tokens: 5 } }, promptVersion: '1.1.0' }) // pro: primary
       .mockResolvedValueOnce({ query: 'PCI multivessel[tiab]', meta: { model: 'gpt-test', usage: { prompt_tokens: 10, completion_tokens: 5 } }, promptVersion: '1.1.0' }) // con: primary, succeeds
       .mockResolvedValueOnce({ query: 'CABG[mesh]', meta: { model: 'gpt-test', usage: { prompt_tokens: 12, completion_tokens: 6 } }, promptVersion: '1.1.0' }); // pro: broadened
-    pubmedService.findReferences
-      .mockResolvedValueOnce([]) // pro: primary query returns nothing (call 1, started immediately by Promise.all)
-      .mockResolvedValueOnce([{ pmid: '222', title: 'PCI outcomes' }]) // con: primary query succeeds, no broadening needed (call 2, started immediately by Promise.all)
-      .mockResolvedValueOnce([{ pmid: '999', title: 'CABG broadened result' }]); // pro: broadened query, only awaited after call 1 resolves empty (call 3)
+    const full = Array.from({ length: 5 }, (_, i) => ({ pmid: `9${i}`, title: `CABG broadened ${i}` }));
+    pubmedService.findReferences.mockImplementation(async ({ query }) => {
+      if (query === 'overly[tiab] AND narrow[tiab] AND query[tiab]') return []; // pro: primary returns nothing
+      if (query === 'PCI multivessel[tiab]') return Array.from({ length: 5 }, (_, i) => ({ pmid: `2${i}`, title: `PCI ${i}` }));
+      if (query === 'CABG[mesh]') return full; // pro: broadened
+      return [];
+    });
 
     const result = await conferenceCaseService.getRoleEvidence({ caseId: 'case1', ownerId: 'user1', role: 'surgeon' });
 
@@ -585,13 +591,46 @@ describe('getRoleEvidence', () => {
       searchIntent: expect.stringContaining('returned zero results'),
     });
     expect(pubmedService.findReferences).toHaveBeenCalledTimes(3);
-    expect(pubmedService.findReferences).toHaveBeenNthCalledWith(1, { query: 'overly[tiab] AND narrow[tiab] AND query[tiab]', maxResults: 5, minYear: expectedMinYear });
-    expect(pubmedService.findReferences).toHaveBeenNthCalledWith(2, { query: 'PCI multivessel[tiab]', maxResults: 5, minYear: expectedMinYear });
-    expect(pubmedService.findReferences).toHaveBeenNthCalledWith(3, { query: 'CABG[mesh]', maxResults: 5, minYear: expectedMinYear });
+    expect(pubmedService.findReferences).toHaveBeenCalledWith({ query: 'overly[tiab] AND narrow[tiab] AND query[tiab]', maxResults: 5, minYear: expectedMinYear });
+    expect(pubmedService.findReferences).toHaveBeenCalledWith({ query: 'PCI multivessel[tiab]', maxResults: 5, minYear: expectedMinYear });
+    expect(pubmedService.findReferences).toHaveBeenCalledWith({ query: 'CABG[mesh]', maxResults: 5, minYear: expectedMinYear });
     // The reflected query is whichever one actually produced the results shown.
-    expect(result.pro).toEqual({ query: 'CABG[mesh]', results: [{ pmid: '999', title: 'CABG broadened result' }] });
-    expect(result.con).toEqual({ query: 'PCI multivessel[tiab]', results: [{ pmid: '222', title: 'PCI outcomes' }] });
+    expect(result.pro).toEqual({ query: 'CABG[mesh]', results: full });
+    expect(result.con.query).toBe('PCI multivessel[tiab]');
     expect(aiCostRepository.record).toHaveBeenCalledTimes(3);
+  });
+
+  it('tops up a short recent list with older articles, recent first and without duplicates', async () => {
+    conferenceCaseRepository.getById.mockResolvedValue(baseCaseState({ heartTeamResponses }));
+    referenceQueryBuilder.buildQuery
+      .mockResolvedValueOnce({ query: 'CABG[tiab]', meta: { model: 'gpt-test', usage: { prompt_tokens: 1, completion_tokens: 1 } }, promptVersion: '1.1.0' })
+      .mockResolvedValueOnce({ query: 'PCI[tiab]', meta: { model: 'gpt-test', usage: { prompt_tokens: 1, completion_tokens: 1 } }, promptVersion: '1.1.0' });
+    const expectedMinYear = new Date().getFullYear() - 10;
+    pubmedService.findReferences.mockImplementation(async ({ query, minYear }) => {
+      if (query === 'CABG[tiab]' && minYear) return [{ pmid: '1', year: 2022 }, { pmid: '2', year: 2020 }];
+      // Without the floor PubMed repeats the recent ones among its relevance-ranked list.
+      if (query === 'CABG[tiab]') return [{ pmid: '2', year: 2020 }, { pmid: '7', year: 2003 }, { pmid: '8', year: 2013 }, { pmid: '9', year: 2001 }, { pmid: '10', year: 1999 }];
+      return Array.from({ length: 5 }, (_, i) => ({ pmid: `3${i}`, year: 2023 }));
+    });
+
+    const result = await conferenceCaseService.getRoleEvidence({ caseId: 'case1', ownerId: 'user1', role: 'surgeon' });
+
+    expect(pubmedService.findReferences).toHaveBeenCalledWith({ query: 'CABG[tiab]', maxResults: 5, minYear: undefined });
+    expect(result.pro.results.map((r) => r.pmid)).toEqual(['1', '2', '7', '8', '9']);
+    // A full recent list is left alone -- no older search for it.
+    expect(pubmedService.findReferences).not.toHaveBeenCalledWith({ query: 'PCI[tiab]', maxResults: 5, minYear: undefined });
+    expect(expectedMinYear).toBeGreaterThan(2003);
+  });
+
+  it('falls back to older articles when nothing at all is recent, even after broadening', async () => {
+    conferenceCaseRepository.getById.mockResolvedValue(baseCaseState({ heartTeamResponses }));
+    referenceQueryBuilder.buildQuery.mockResolvedValue({ query: 'rare[tiab]', meta: { model: 'gpt-test', usage: { prompt_tokens: 1, completion_tokens: 1 } }, promptVersion: '1.1.0' });
+    pubmedService.findReferences.mockImplementation(async ({ minYear }) => (minYear ? [] : [{ pmid: '55', year: 2003 }]));
+
+    const result = await conferenceCaseService.getRoleEvidence({ caseId: 'case1', ownerId: 'user1', role: 'surgeon' });
+
+    expect(result.pro.results).toEqual([{ pmid: '55', year: 2003 }]);
+    expect(result.con.results).toEqual([{ pmid: '55', year: 2003 }]);
   });
 
   it('drops the recency floor entirely when the recommendation/rationale turns on valve durability', async () => {

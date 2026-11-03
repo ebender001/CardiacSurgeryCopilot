@@ -383,12 +383,13 @@ async function getHeartTeamResponses({ caseId, ownerId }) {
  * reliably returns zero regardless of the actual clinical content.
  * `minYear` (which may already be `undefined` -- see `getRoleEvidence`'s
  * durability handling) is applied identically to both attempts; broadening
- * never itself changes the recency floor.
+ * never itself changes the recency floor. Whatever the window couldn't fill
+ * is topped up with older articles afterwards -- see `topUpWithOlder`.
  */
 async function findEvidenceWithFallback({ topic, searchIntent, primaryQuery, maxResults, minYear, caseId, ownerId, operation }) {
   const results = await pubmedService.findReferences({ query: primaryQuery, maxResults, minYear });
   if (results.length > 0) {
-    return { query: primaryQuery, results };
+    return { query: primaryQuery, results: await topUpWithOlder({ query: primaryQuery, results, maxResults, minYear }) };
   }
 
   const resultWindowDescription = minYear
@@ -401,7 +402,26 @@ async function findEvidenceWithFallback({ topic, searchIntent, primaryQuery, max
   await recordAIUsage({ caseId, ownerId, operation, meta: broadened.meta });
 
   const broadenedResults = await pubmedService.findReferences({ query: broadened.query, maxResults, minYear });
-  return { query: broadened.query, results: broadenedResults };
+  return {
+    query: broadened.query,
+    results: await topUpWithOlder({ query: broadened.query, results: broadenedResults, maxResults, minYear }),
+  };
+}
+
+/**
+ * The recency floor is a preference, not a hard rule: when fewer than
+ * `maxResults` articles fall inside the window, there simply aren't more
+ * recent ones to show, so the list is filled out with the most relevant
+ * older articles for the same query rather than left short (or empty).
+ * Recent articles always come first; older ones only ever follow them.
+ * Does nothing when there's no floor (durability searches) or the window
+ * already produced a full list.
+ */
+async function topUpWithOlder({ query, results, maxResults, minYear }) {
+  if (!minYear || results.length >= maxResults) return results;
+  const older = await pubmedService.findReferences({ query, maxResults, minYear: undefined });
+  const seen = new Set(results.map((article) => article.pmid));
+  return [...results, ...older.filter((article) => !seen.has(article.pmid))].slice(0, maxResults);
 }
 
 /**
@@ -414,8 +434,9 @@ async function findEvidenceWithFallback({ topic, searchIntent, primaryQuery, max
  * revisiting a role's evidence never repeats the AI query-building calls
  * or the PubMed round trips. Results are restricted to publications from
  * the last `EVIDENCE_MAX_AGE_YEARS` years (see pubmedService's `minYear`)
- * -- never fabricated if fewer than `EVIDENCE_MAX_RESULTS` turn up within
- * that window -- UNLESS this role's recommendation/rationale turns on
+ * first, then -- never fabricated -- topped up with older articles only if
+ * fewer than `EVIDENCE_MAX_RESULTS` turn up within that window (see
+ * `topUpWithOlder`) -- UNLESS this role's recommendation/rationale turns on
  * durability or reintervention (see `needsDurabilityEvidence`), in which
  * case the recency floor is dropped entirely so long-term valve-durability
  * literature older than that window isn't excluded from exactly the
