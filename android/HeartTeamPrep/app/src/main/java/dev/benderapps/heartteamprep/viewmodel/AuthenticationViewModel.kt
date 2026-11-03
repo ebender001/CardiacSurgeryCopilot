@@ -9,6 +9,7 @@ import dev.benderapps.heartteamprep.model.AuthenticationState
 import dev.benderapps.heartteamprep.model.EmailAuthMode
 import dev.benderapps.heartteamprep.service.AuthenticationService
 import dev.benderapps.heartteamprep.service.AuthenticationServiceError
+import dev.benderapps.heartteamprep.service.BackendService
 import dev.benderapps.heartteamprep.service.ParseAuthenticationService
 import kotlinx.coroutines.launch
 
@@ -24,6 +25,18 @@ class AuthenticationViewModel(
 
     var state: AuthenticationState by mutableStateOf(AuthenticationState.CheckingSession)
         private set
+
+    /**
+     * Set when the app lands back on Welcome because the server rejected a
+     * stale session, so the trainee isn't left wondering why they were
+     * signed out. Cleared on the next sign-in attempt.
+     */
+    var sessionExpiredMessage: String? by mutableStateOf(null)
+        private set
+
+    init {
+        viewModelScope.launch { BackendService.sessionExpired.collect { handleSessionExpired() } }
+    }
 
     // Email sign-in/create-account form
     var emailMode: EmailAuthMode by mutableStateOf(EmailAuthMode.SIGN_IN)
@@ -82,6 +95,7 @@ class AuthenticationViewModel(
     fun submitEmailForm(onSignedIn: () -> Unit) {
         if (isSubmittingEmailForm) return
         formErrorMessage = null
+        sessionExpiredMessage = null
         if (!validateEmailForm()) return
 
         viewModelScope.launch {
@@ -92,6 +106,9 @@ class AuthenticationViewModel(
                     EmailAuthMode.SIGN_IN -> authService.signIn(normalizedEmail, password)
                     EmailAuthMode.CREATE_ACCOUNT -> authService.signUp(normalizedEmail, password)
                 }
+                // Don't keep the credentials in memory once they've been used.
+                password = ""
+                confirmPassword = ""
                 state = AuthenticationState.SignedIn(user)
                 onSignedIn()
             } catch (e: AuthenticationServiceError) {
@@ -177,7 +194,28 @@ class AuthenticationViewModel(
                 // meaningful to stay on-screen for on failure.
             }
             state = AuthenticationState.SignedOut
+            sessionExpiredMessage = null
         }
+    }
+
+    /**
+     * There's no way to silently obtain a new session without the person
+     * re-authenticating, so this doesn't attempt a background login: it
+     * clears the dead local session (tolerating the server-side sign-out
+     * failing, since the session it would invalidate is already invalid)
+     * and routes back to Welcome with an explanation, rather than leaving
+     * the trainee stuck retrying actions that can never succeed.
+     */
+    private suspend fun handleSessionExpired() {
+        if (state !is AuthenticationState.SignedIn) return
+        state = AuthenticationState.EndingSession
+        try {
+            authService.signOut()
+        } catch (e: Exception) {
+            // Expected -- see above.
+        }
+        state = AuthenticationState.SignedOut
+        sessionExpiredMessage = "Your session expired. Please sign in again."
     }
 
     /**

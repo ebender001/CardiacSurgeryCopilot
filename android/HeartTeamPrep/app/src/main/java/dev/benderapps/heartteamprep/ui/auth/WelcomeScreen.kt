@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,6 +18,9 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -73,10 +77,35 @@ fun WelcomeScreen(viewModel: AuthenticationViewModel) {
                 .padding(horizontal = 20.dp)
         ) {
             Spacer(Modifier.height(24.dp))
+            viewModel.sessionExpiredMessage?.let { message ->
+                SessionExpiredBanner(message, colors)
+                Spacer(Modifier.height(16.dp))
+            }
             EmailAuthForm(viewModel)
             LegalAgreementText(colors)
             Spacer(Modifier.height(24.dp))
         }
+    }
+}
+
+/**
+ * Quiet, non-alarming notice -- landing back on Welcome because a stale
+ * session was cleared isn't an error the trainee caused, so it deliberately
+ * doesn't use error styling.
+ */
+@Composable
+private fun SessionExpiredBanner(message: String, colors: HeartTeamPrepColors) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(Icons.Filled.Info, contentDescription = null, tint = colors.primaryText)
+        Text(message, style = MaterialTheme.typography.bodySmall, color = colors.slateText)
     }
 }
 
