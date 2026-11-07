@@ -18,14 +18,19 @@ struct ConferenceCaseRow: View {
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.primary)
                     .lineLimit(2)
-                Text(record.createdAt, style: .date)
+                Text(record.createdAt.formatted(date: .abbreviated, time: .omitted))
                     .font(.caption)
                     .foregroundStyle(Color.slateText)
             }
 
             Spacer(minLength: 8)
 
-            statusBadge
+            VStack(alignment: .trailing, spacing: 10) {
+                statusBadge
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.slateText.opacity(0.5))
+            }
         }
         .padding(14)
         .background(

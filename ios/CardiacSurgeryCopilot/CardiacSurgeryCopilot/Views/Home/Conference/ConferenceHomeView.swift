@@ -63,7 +63,7 @@ struct ConferenceHomeView: View {
                     PrivacyReminder()
                 }
                 .listRowSeparator(.hidden)
-                .listRowInsets(rowInsets(top: 0, bottom: 16))
+                .listRowInsets(rowInsets(top: 0, bottom: 12))
                 .listRowBackground(Color.clear)
 
                 Section {
@@ -194,7 +194,7 @@ struct ConferenceHomeView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text("Heart Team Prep")
-                .font(.title2.weight(.bold))
+                .font(.largeTitle.weight(.bold))
                 .foregroundStyle(.primary)
             Text("Preoperative conference prep")
                 .font(.subheadline)

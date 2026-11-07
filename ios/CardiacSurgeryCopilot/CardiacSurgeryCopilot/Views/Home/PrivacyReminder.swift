@@ -12,14 +12,12 @@ import SwiftUI
 
 struct PrivacyReminder: View {
     var body: some View {
-        Label {
-            Text("Do not include patient identifiers, dates, or locations.")
-        } icon: {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
             Image(systemName: "lock.fill")
+            Text("Do not include patient identifiers, dates, or locations.")
         }
         .font(.caption)
         .foregroundStyle(Color.slateText)
-        .labelStyle(.titleAndIcon)
         .accessibilityElement(children: .combine)
     }
 }

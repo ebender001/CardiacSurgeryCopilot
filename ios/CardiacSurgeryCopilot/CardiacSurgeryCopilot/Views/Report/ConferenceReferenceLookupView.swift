@@ -54,21 +54,27 @@ struct ConferenceReferenceLookupView: View {
     }
 
     private func resultsList(_ results: [PubMedArticle]) -> some View {
-        List {
-            Section {
-                Text(viewModel.topic)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
-                if !viewModel.searchIntent.isEmpty {
-                    Text(viewModel.searchIntent)
-                        .font(.footnote)
-                        .foregroundStyle(Color.slateText)
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(viewModel.topic)
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(.primary)
+                    if !viewModel.searchIntent.isEmpty {
+                        Text(viewModel.searchIntent)
+                            .font(.subheadline)
+                            .foregroundStyle(Color.slateText)
+                    }
+                    if !results.isEmpty {
+                        Text("\(results.count) articles from PubMed")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.copilotPrimaryText)
+                            .padding(.top, 2)
+                    }
                 }
-            }
-            .listRowSeparator(.hidden)
-            .listRowBackground(Color.clear)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.bottom, 4)
 
-            Section {
                 if results.isEmpty {
                     Text("No matching articles found.")
                         .font(.footnote)
@@ -84,32 +90,62 @@ struct ConferenceReferenceLookupView: View {
                     }
                 }
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
+            .padding(.bottom, 32)
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
     }
 
     private func articleRow(_ article: PubMedArticle) -> some View {
-        HStack(spacing: 8) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(article.title)
-                    .font(.subheadline.weight(.medium))
+        HStack(alignment: .center, spacing: 10) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(Self.tidy(article.title))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
-                    .lineLimit(3)
-                Text(articleSubtitle(article))
-                    .font(.caption)
-                    .foregroundStyle(Color.slateText)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(4)
+                HStack(spacing: 6) {
+                    if let journal = article.journal {
+                        Text(journal)
+                            .font(.caption)
+                            .italic()
+                            .foregroundStyle(Color.slateText)
+                            .lineLimit(1)
+                    }
+                    if let year = article.year {
+                        Text(year)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(Color.copilotPrimaryText)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(Color.copilotPrimaryText.opacity(0.12)))
+                    }
+                }
             }
             Spacer(minLength: 8)
             Image(systemName: "chevron.right")
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(Color.slateText.opacity(0.6))
+                .foregroundStyle(Color.slateText.opacity(0.5))
         }
-        .padding(.vertical, 4)
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color(.secondarySystemGroupedBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
+        )
+        .contentShape(Rectangle())
     }
 
-    private func articleSubtitle(_ article: PubMedArticle) -> String {
-        [article.journal, article.year].compactMap { $0 }.joined(separator: " • ")
+    /// PubMed titles often carry double spaces where inline markup was
+    /// stripped, and a trailing period.
+    private static func tidy(_ title: String) -> String {
+        var t = title.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+        if t.hasSuffix(".") { t.removeLast() }
+        return t
     }
 }
 

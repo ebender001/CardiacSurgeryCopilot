@@ -62,66 +62,106 @@ struct ConferenceReportView: View {
     }
 
     private func reportList(_ report: ConferenceReport) -> some View {
-        List {
-            section("Diagnosis", report.diagnosis)
-            section("Indication", report.indication)
-            section("Missing Information", report.missingInformation)
-            section("Operative Strategy", report.operativeStrategy)
-            section("Alternatives", report.alternatives)
-            section("Controversies", report.controversies)
-            section("Technical Considerations", report.technicalConsiderations)
-            section("Postoperative Concerns", report.postoperativeConcerns)
-            evidenceSection(report.evidenceGuidelines)
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 20) {
+                section("Diagnosis", icon: "stethoscope", report.diagnosis)
+                section("Indication", icon: "checkmark.seal", report.indication)
+                section("Missing Information", icon: "questionmark.circle", report.missingInformation)
+                section("Operative Strategy", icon: "heart.text.square", report.operativeStrategy)
+                section("Alternatives", icon: "arrow.triangle.branch", report.alternatives)
+                section("Controversies", icon: "bubble.left.and.bubble.right", report.controversies)
+                section("Technical Considerations", icon: "wrench.and.screwdriver", report.technicalConsiderations)
+                section("Postoperative Concerns", icon: "cross.case", report.postoperativeConcerns)
+                evidenceSection(report.evidenceGuidelines)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
+            .padding(.bottom, 32)
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
     }
 
-    private func section(_ title: String, _ text: String) -> some View {
-        Section {
-            Text(text)
-                .font(.body)
-                .foregroundStyle(.primary)
-                .padding(.vertical, 4)
-        } header: {
+    private func sectionHeader(_ title: String, icon: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.copilotPrimaryText)
+                .frame(width: 22)
             Text(title)
+                .font(.headline)
+                .foregroundStyle(Color.copilotPrimaryText)
+        }
+        .accessibilityAddTraits(.isHeader)
+    }
+
+    private func card<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        content()
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color(.secondarySystemGroupedBackground))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
+            )
+    }
+
+    private func section(_ title: String, icon: String, _ text: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionHeader(title, icon: icon)
+            card {
+                Text(text)
+                    .font(.body)
+                    .lineSpacing(3)
+                    .foregroundStyle(.primary)
+                    .textSelection(.enabled)
+            }
         }
     }
 
     private func evidenceSection(_ topics: [ConferenceReferenceTopic]) -> some View {
-        Section {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionHeader("Evidence & Guidelines", icon: "books.vertical")
             if topics.isEmpty {
-                Text("No evidence or guideline topics identified for this case.")
-                    .font(.footnote)
-                    .foregroundStyle(Color.slateText)
+                card {
+                    Text("No evidence or guideline topics identified for this case.")
+                        .font(.footnote)
+                        .foregroundStyle(Color.slateText)
+                }
             } else {
                 ForEach(Array(topics.enumerated()), id: \.offset) { _, topic in
                     Button {
                         path.append(.referenceLookup(caseId: caseId, topic: topic.topic, searchIntent: topic.searchIntent))
                     } label: {
-                        topicRow(topic)
+                        card { topicRow(topic) }
                     }
                     .buttonStyle(.plain)
                 }
             }
-        } header: {
-            Text("Evidence & Guidelines")
         }
     }
 
     private func topicRow(_ topic: ConferenceReferenceTopic) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(topic.topic)
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(.primary)
-            if !topic.searchIntent.isEmpty {
-                Text(topic.searchIntent)
-                    .font(.caption)
-                    .foregroundStyle(Color.slateText)
-                    .lineLimit(2)
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(topic.topic)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.leading)
+                if !topic.searchIntent.isEmpty {
+                    Text(topic.searchIntent)
+                        .font(.footnote)
+                        .foregroundStyle(Color.slateText)
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(3)
+                }
             }
+            Spacer(minLength: 8)
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.slateText.opacity(0.5))
         }
-        .padding(.vertical, 4)
     }
 }
 

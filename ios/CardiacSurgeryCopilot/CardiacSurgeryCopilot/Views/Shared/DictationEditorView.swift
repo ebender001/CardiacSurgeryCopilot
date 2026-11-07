@@ -56,16 +56,16 @@ struct DictationEditorView: View {
                 .padding(12)
                 .frame(width: proxy.size.width, height: proxy.size.height)
                 .disabled(phase != .idle)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Color(.secondarySystemBackground)))
+                .background(RoundedRectangle(cornerRadius: 12).fill(Color.warmBackground))
                 .overlay(
                     RoundedRectangle(cornerRadius: 12)
-                        .strokeBorder(Color.copilotPrimary.opacity(isFocused ? 0.35 : 0.08), lineWidth: isFocused ? 1.5 : 1)
+                        .strokeBorder(Color.copilotPrimary.opacity(isFocused ? 0.35 : 0.1), lineWidth: isFocused ? 1.5 : 1)
                 )
                 .overlay(alignment: .topLeading) {
                     if text.isEmpty, phase == .idle {
                         Text(placeholder)
                             .font(.body)
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(Color.slateText.opacity(0.6))
                             .padding(.horizontal, 16)
                             .padding(.vertical, 20)
                             .allowsHitTesting(false)
@@ -137,8 +137,8 @@ struct DictationEditorView: View {
                 Spacer()
             }
             Text(dictationCaption)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(Color.slateText)
         }
     }
 
@@ -147,14 +147,14 @@ struct DictationEditorView: View {
         let diameter: CGFloat = 64
         switch phase {
         case .idle:
-            Image(systemName: "mic")
-                .font(.title2.weight(.semibold))
-                .foregroundStyle(Color.copilotPrimaryText)
-                .frame(width: diameter, height: diameter)
-                .background(Circle().fill(Color(.secondarySystemBackground)))
-                .overlay(Circle().strokeBorder(Color.copilotPrimaryText.opacity(0.25), lineWidth: 1.5))
-        case .listening:
             Image(systemName: "mic.fill")
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(Color.white)
+                .frame(width: diameter, height: diameter)
+                .background(Circle().fill(Color.copilotPrimary))
+                .shadow(color: Color.copilotPrimary.opacity(0.3), radius: 8, y: 3)
+        case .listening:
+            Image(systemName: "stop.fill")
                 .font(.title2.weight(.semibold))
                 .foregroundStyle(Color.white)
                 .frame(width: diameter, height: diameter)

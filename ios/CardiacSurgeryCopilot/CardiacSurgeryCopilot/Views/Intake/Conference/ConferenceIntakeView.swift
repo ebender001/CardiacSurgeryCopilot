@@ -99,13 +99,33 @@ struct ConferenceIntakeView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Describe the case")
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(.primary)
-            Text("Present it as you would to the heart team. Do not include protected health information, including patient names, hospital or institution names, dates of service, or geographic locations.")
-                .font(.subheadline)
-                .foregroundStyle(Color.slateText)
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Describe the case")
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(.primary)
+                Text("Present it as you would to the heart team. Dictate or type, whichever is easier.")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.slateText)
+            }
+
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "lock.fill")
+                    .font(.footnote)
+                    .foregroundStyle(Color.copilotAccent)
+                    .padding(.top, 2)
+                Text("Do not include protected health information: patient names, hospital or institution names, dates of service, or geographic locations.")
+                    .font(.footnote)
+                    .foregroundStyle(.primary.opacity(0.8))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.copilotAccentTint.opacity(0.6))
+            )
+            .accessibilityElement(children: .combine)
         }
     }
 
@@ -114,8 +134,6 @@ struct ConferenceIntakeView: View {
     /// intentional surface.
     private var editorCard: some View {
         VStack(alignment: .leading, spacing: 14) {
-            inputModeHint
-
             DictationEditorView(
                 text: $viewModel.narrativeText,
                 phase: viewModel.dictationPhase,
@@ -134,15 +152,6 @@ struct ConferenceIntakeView: View {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
         )
-    }
-
-    /// A single flowing sentence so it wraps naturally as one paragraph on narrow screens.
-    private var inputModeHint: some View {
-        Text("\(Image(systemName: "mic.fill")) Dictate or \(Image(systemName: "keyboard")) type -- whichever is easier.")
-            .font(.footnote.weight(.medium))
-            .foregroundStyle(Color.slateText)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("You can dictate or type the case summary, whichever is easier.")
     }
 
     private var continueFooter: some View {
