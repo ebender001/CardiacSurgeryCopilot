@@ -98,5 +98,6 @@ class ParseAuthenticationService : AuthenticationService {
 private fun ParseUser.toAuthenticatedUser() = AuthenticatedUser(
     id = objectId ?: "",
     email = email,
-    isEmailVerified = getBoolean("emailVerified")
+    isEmailVerified = getBoolean("emailVerified"),
+    isReviewer = getBoolean("isReviewer")
 )

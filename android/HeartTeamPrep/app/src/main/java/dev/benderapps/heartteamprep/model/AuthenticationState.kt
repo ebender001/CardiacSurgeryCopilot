@@ -8,7 +8,13 @@ package dev.benderapps.heartteamprep.model
 data class AuthenticatedUser(
     val id: String,
     val email: String?,
-    val isEmailVerified: Boolean
+    val isEmailVerified: Boolean,
+    /**
+     * Server-set flag for the app-store review account, which can't buy a
+     * subscription. Only the backend (master key) can set it -- see
+     * `backend/cloud/functions/protectUserFields.js`.
+     */
+    val isReviewer: Boolean = false
 )
 
 sealed interface AuthenticationState {

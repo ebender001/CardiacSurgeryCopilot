@@ -19,3 +19,4 @@ require('./functions/getHeartTeamRoleEvidence');
 // Shared, cross-workflow
 require('./functions/correctDictation');
 require('./functions/deleteAccount');
+require('./functions/protectUserFields');

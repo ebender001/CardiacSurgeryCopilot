@@ -9,7 +9,9 @@ import dev.benderapps.heartteamprep.model.ConferenceCaseSummary
 import dev.benderapps.heartteamprep.service.AIDataConsentStore
 import dev.benderapps.heartteamprep.service.BackendError
 import dev.benderapps.heartteamprep.service.BackendService
+import dev.benderapps.heartteamprep.service.AuthenticationService
 import dev.benderapps.heartteamprep.service.HiddenCaseIdsStore
+import dev.benderapps.heartteamprep.service.ParseAuthenticationService
 import dev.benderapps.heartteamprep.service.PlayBillingSubscriptionService
 import dev.benderapps.heartteamprep.service.SubscriptionService
 import kotlinx.coroutines.launch
@@ -22,7 +24,8 @@ import kotlinx.coroutines.launch
 class ConferenceHomeViewModel(
     private val hiddenCaseIds: HiddenCaseIdsStore = HiddenCaseIdsStore(namespace = "conference"),
     private val aiConsentStore: AIDataConsentStore = AIDataConsentStore(),
-    private val subscriptionService: SubscriptionService = PlayBillingSubscriptionService
+    private val subscriptionService: SubscriptionService = PlayBillingSubscriptionService,
+    private val authService: AuthenticationService = ParseAuthenticationService()
 ) : ViewModel() {
 
     var recentCases: List<ConferenceCaseSummary> by mutableStateOf(emptyList())
@@ -88,7 +91,9 @@ class ConferenceHomeViewModel(
         isCheckingCaseAccess = true
         viewModelScope.launch {
             val subscribed = try {
-                subscriptionService.hasActiveEntitlement()
+                // The app-store review account can't buy a subscription.
+                authService.currentUser()?.isReviewer == true ||
+                    subscriptionService.hasActiveEntitlement()
             } finally {
                 isCheckingCaseAccess = false
             }
