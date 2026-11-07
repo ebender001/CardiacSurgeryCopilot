@@ -8,6 +8,7 @@ website/
 ├── index.html            # landing page markup
 ├── privacy-policy.html    # privacy policy (App Store / GDPR / CCPA)
 ├── terms-of-use.html      # terms of use (includes Apple's required minimum EULA terms)
+├── delete-account.html     # account-deletion instructions (Google Play Data safety "Delete account URL")
 ├── support.html            # FAQ + contact (also the future App Store Connect "Support URL")
 ├── styles.css              # all styles (CSS custom properties for theme values)
 ├── script.js                # mobile nav toggle, smooth scroll, footer year
