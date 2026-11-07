@@ -14,7 +14,7 @@
 import Foundation
 import ParseSwift
 
-struct User: ParseUser {
+nonisolated struct User: ParseUser {
     var objectId: String?
     var createdAt: Date?
     var updatedAt: Date?
